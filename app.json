@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "der die das",
+    "slug": "german-vocab-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F3F5F8",
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "der die das: German A1–B2",
+      "shortName": "der die das",
+      "themeColor": "#F3F5F8",
+      "backgroundColor": "#F3F5F8"
+    },
+    "experiments": {
+      "baseUrl": "/german-vocab-app"
+    }
+  }
+}
