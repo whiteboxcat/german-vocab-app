@@ -7,6 +7,8 @@ import { color, size } from '../ui/theme';
 
 type Props = {
   o: Overview;
+  totals: Record<string, number>;
+  openLevels: string[];
   offline: boolean;
   message: string | null;
   onLesson: () => void;
@@ -23,7 +25,9 @@ function untilText(ts: number | null, now = Date.now()): string {
   return `Next review in ${Math.round(h / 24)} days.`;
 }
 
-export function Home({ o, offline, message, onLesson, onReview, onReset }: Props) {
+const CEFR = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+export function Home({ o, totals, openLevels, offline, message, onLesson, onReview, onReset }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const lessonCount = Math.min(LESSON_BATCH, o.lessonsAvailable.length);
   const passedInLevel = PASS_PER_LEVEL - o.toNextLevel;
@@ -70,15 +74,24 @@ export function Home({ o, offline, message, onLesson, onReview, onReset }: Props
         </View>
 
         <View style={styles.cefr}>
-          {o.byCefr.map((c) => (
-            <View key={c.cefr} style={{ gap: 6 }}>
-              <View style={styles.cefrRow}>
-                <T style={styles.cefrName}>{c.cefr}</T>
-                <T style={styles.sub}>{c.learned} of {c.total} words</T>
+          {CEFR.map((cefr) => {
+            const loaded = o.byCefr.find((c) => c.cefr === cefr);
+            const total = Math.max(totals[cefr] ?? 0, loaded?.total ?? 0);
+            if (!total) return null;
+            const isOpen = openLevels.includes(cefr);
+            const learned = loaded?.learned ?? 0;
+            return (
+              <View key={cefr} style={{ gap: 6, opacity: isOpen ? 1 : 0.5 }}>
+                <View style={styles.cefrRow}>
+                  <T style={styles.cefrName}>{cefr}</T>
+                  <T style={styles.sub}>
+                    {isOpen ? `${learned} of ${total} words` : `${total} words · opens after the level before`}
+                  </T>
+                </View>
+                <Bar value={isOpen && total ? learned / total : 0} tint={color.das} />
               </View>
-              <Bar value={c.total ? c.learned / c.total : 0} tint={color.das} />
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         <View style={styles.footer}>

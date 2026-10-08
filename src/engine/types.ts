@@ -79,6 +79,8 @@ export type Progress = {
   learned: string[];     // word keys that finished their lesson
   reviewsDone: number;
   createdAt: number;
+  /** CEFR levels whose words are downloaded and taught. Starts with A1; the next opens when all are learned. */
+  openLevels?: string[];
 };
 
 export const wordKey = (w: Word) => `${w.type}:${w.id}`;

@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { readJSON, remove, writeJSON } from './src/data/storage';
-import { loadWords } from './src/data/words';
+import { CEFR_LEVELS, levelTotals, loadWords } from './src/data/words';
 import {
   answerCard, completeLesson, emptyProgress, LESSON_BATCH, overview,
 } from './src/engine/progress';
@@ -24,18 +24,24 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [totals, setTotals] = useState<Record<string, number>>({});
   const progressRef = useRef<Progress | null>(null);
+  const opening = useRef(false);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [r, saved] = await Promise.all([loadWords(), readJSON<Progress>(PROGRESS_KEY)]);
+      const saved = (await readJSON<Progress>(PROGRESS_KEY)) ?? emptyProgress(Date.now());
+      const levels = saved.openLevels?.length ? saved.openLevels : ['A1'];
+      const r = await loadWords(levels);
       setWords(r.words);
       setOffline(r.offline);
-      setProgress(saved ?? emptyProgress(Date.now()));
+      progressRef.current = { ...saved, openLevels: levels };
+      setProgress(progressRef.current);
     } catch {
       setError("Couldn't download the word list. Check your internet connection and try again.");
     }
+    levelTotals().then(setTotals);
   }, []);
 
   useEffect(() => { loadWebFont(); load(); }, [load]);
@@ -50,6 +56,26 @@ export default function App() {
 
   const byKey = useMemo(() => new Map((words ?? []).map((w) => [wordKey(w), w])), [words]);
   const o = useMemo(() => (words && progress ? overview(words, progress, now) : null), [words, progress, now]);
+
+  // Every word of the open levels has had its lesson → download and open the next level.
+  useEffect(() => {
+    if (!o || !progress || opening.current || screen.name !== 'home') return;
+    if (o.total === 0 || o.learned < o.total) return;
+    const open = progress.openLevels ?? ['A1'];
+    const next = CEFR_LEVELS.find((l) => !open.includes(l) && (totals[l] ?? 1) > 0);
+    if (!next) return;
+    opening.current = true;
+    const levels = [...open, next];
+    loadWords(levels)
+      .then((r) => {
+        const p = { ...(progressRef.current ?? progress), openLevels: levels };
+        setWords(r.words);
+        save(p);
+        setMessage(`You've had every ${open[open.length - 1]} word. ${next} is open now.`);
+      })
+      .catch(() => setMessage(`Couldn't download the ${next} words yet. They'll load next time you're online.`))
+      .finally(() => { opening.current = false; });
+  }, [o, progress, totals, screen.name, save]);
 
   const onFirstAnswer = useCallback((id: CardId, correct: boolean) => {
     const p = progressRef.current;
@@ -91,12 +117,14 @@ export default function App() {
     );
   } else {
     body = (
-      <Home o={o} offline={offline} message={message}
+      <Home o={o} offline={offline} message={message} totals={totals}
+        openLevels={progress.openLevels ?? ['A1']}
         onLesson={() => { setMessage(null); setScreen({ name: 'lesson', words: o.lessonsAvailable.slice(0, LESSON_BATCH) }); }}
         onReview={() => { setMessage(null); setScreen({ name: 'review', ids: o.reviewsDue }); }}
         onReset={async () => {
           await remove(PROGRESS_KEY);
-          save(emptyProgress(Date.now()));
+          save({ ...emptyProgress(Date.now()), openLevels: ['A1'] });
+          setWords((ws) => (ws ?? []).filter((w) => w.level === 'A1'));
           setMessage('Progress deleted. Start again with your first lesson.');
         }} />
     );
