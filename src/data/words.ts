@@ -10,7 +10,8 @@ type Cache = { version: number; words: Word[]; savedAt: number };
 
 export type LoadResult = { words: Word[]; version: number; offline: boolean };
 
-const useSupabase = () => SUPABASE_PUBLISHABLE_KEY.length > 0;
+let supabaseFailed = false;
+const useSupabase = () => SUPABASE_PUBLISHABLE_KEY.length > 0 && !supabaseFailed;
 
 async function getJSON(url: string, headers: Record<string, string> = {}, timeoutMs = 15000) {
   const ctrl = new AbortController();
@@ -63,16 +64,27 @@ async function remoteWords(): Promise<Word[]> {
   ];
 }
 
+async function fetchFresh(cache: Cache | null): Promise<LoadResult> {
+  const version = await remoteVersion();
+  if (cache && cache.version === version && cache.words.length) {
+    return { words: cache.words, version, offline: false };
+  }
+  const words = await remoteWords();
+  if (!words.length) throw new Error('empty word list');
+  await writeJSON(CACHE_KEY, { version, words, savedAt: Date.now() } satisfies Cache);
+  return { words, version, offline: false };
+}
+
 export async function loadWords(): Promise<LoadResult> {
   const cache = await readJSON<Cache>(CACHE_KEY);
   try {
-    const version = await remoteVersion();
-    if (cache && cache.version === version && cache.words.length) {
-      return { words: cache.words, version, offline: false };
+    try {
+      return await fetchFresh(cache);
+    } catch (e) {
+      if (!useSupabase()) throw e;
+      supabaseFailed = true; // Supabase unreachable or empty: use the public GitHub copy instead
+      return await fetchFresh(cache);
     }
-    const words = await remoteWords();
-    await writeJSON(CACHE_KEY, { version, words, savedAt: Date.now() } satisfies Cache);
-    return { words, version, offline: false };
   } catch (e) {
     if (cache?.words.length) return { words: cache.words, version: cache.version, offline: true };
     throw e;
