@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -38,6 +38,15 @@ jobs:
 
       - name: Single-page app fallback
         run: cp dist/index.html dist/404.html
+
+      - name: Keep a copy of the built site on the web-build branch
+        run: |
+          cd dist
+          git init -q -b web-build
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "Web build of ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" web-build
 
       - uses: actions/upload-pages-artifact@v3
         with:
