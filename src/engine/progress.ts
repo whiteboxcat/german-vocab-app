@@ -110,3 +110,20 @@ export function shuffleQueue(ids: CardId[], rand: () => number = Math.random): C
   }
   return a;
 }
+
+// ---------------------------------------------------------------- test tools
+/** Pretend `ms` milliseconds have passed: every schedule moves earlier by that much. */
+export function skipTime(p: Progress, ms: number): Progress {
+  const cards: Progress['cards'] = {};
+  for (const [id, c] of Object.entries(p.cards)) {
+    cards[id] = { ...c, due: c.due - ms, lastReview: c.lastReview === null ? null : c.lastReview - ms };
+  }
+  return { ...p, cards, createdAt: p.createdAt - ms };
+}
+
+/** Make every card due right now (keeps how well each one is known). */
+export function allDueNow(p: Progress, now: number): Progress {
+  const cards: Progress['cards'] = {};
+  for (const [id, c] of Object.entries(p.cards)) cards[id] = { ...c, due: Math.min(c.due, now) };
+  return { ...p, cards };
+}

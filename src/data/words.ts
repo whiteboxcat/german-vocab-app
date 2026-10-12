@@ -11,7 +11,7 @@ export const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 const cacheKey = (level: string) => `words-cache-v2-${level}`;
 type Cache = { version: number; words: Word[]; savedAt: number };
 
-export type LoadResult = { words: Word[]; version: number; offline: boolean };
+export type LoadResult = { words: Word[]; version: number; offline: boolean; source: string };
 
 let supabaseFailed = false;
 const useSupabase = () => SUPABASE_PUBLISHABLE_KEY.length > 0 && !supabaseFailed;
@@ -94,7 +94,7 @@ async function freshLevels(levels: string[]): Promise<LoadResult> {
     words.push(...lw);
   }
   if (!words.length) throw new Error('empty word list');
-  return { words, version, offline: false };
+  return { words, version, offline: false, source: useSupabase() ? 'Supabase' : 'GitHub' };
 }
 
 /** Words of the given CEFR levels. */
@@ -114,7 +114,7 @@ export async function loadWords(levels: string[]): Promise<LoadResult> {
       const c = await readJSON<Cache>(cacheKey(level));
       if (c) { cached.push(...c.words); version = c.version; }
     }
-    if (cached.length) return { words: cached, version, offline: true };
+    if (cached.length) return { words: cached, version, offline: true, source: 'saved copy' };
     throw e;
   }
 }

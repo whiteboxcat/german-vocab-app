@@ -14,6 +14,7 @@ type Props = {
   onLesson: () => void;
   onReview: () => void;
   onReset: () => void;
+  testPanel?: React.ReactNode;
 };
 
 function untilText(ts: number | null, now = Date.now()): string {
@@ -27,7 +28,7 @@ function untilText(ts: number | null, now = Date.now()): string {
 
 const CEFR = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-export function Home({ o, totals, openLevels, offline, message, onLesson, onReview, onReset }: Props) {
+export function Home({ o, totals, openLevels, offline, message, onLesson, onReview, onReset, testPanel }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const lessonCount = Math.min(LESSON_BATCH, o.lessonsAvailable.length);
   const passedInLevel = PASS_PER_LEVEL - o.toNextLevel;
@@ -45,6 +46,8 @@ export function Home({ o, totals, openLevels, offline, message, onLesson, onRevi
         </View>
 
         {message ? <T style={styles.message}>{message}</T> : null}
+
+        {testPanel}
 
         <View style={styles.levelBlock}>
           <T style={styles.levelNum}>Level {o.level}</T>

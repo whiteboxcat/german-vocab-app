@@ -5,7 +5,7 @@ import { checkMeaning, checkPlural, checkVerbForm } from '../src/engine/answer';
 import { check, facetsFor, promptFor } from '../src/engine/cards';
 import { intervalDays, LEARNING_STEPS, review, newCardAfterLesson } from '../src/engine/fsrs';
 import {
-  answerCard, completeLesson, emptyProgress, LEVEL_SIZE, overview, PASS_PER_LEVEL, shuffleQueue,
+  allDueNow, answerCard, completeLesson, emptyProgress, LEVEL_SIZE, overview, PASS_PER_LEVEL, shuffleQueue, skipTime,
 } from '../src/engine/progress';
 import { Noun, Verb, Word } from '../src/engine/types';
 
@@ -124,6 +124,21 @@ test('shuffle keeps facets of a word apart', () => {
   const q = shuffleQueue(ids, rand);
   assert.equal(q.length, ids.length);
   assert.deepEqual([...q].sort(), [...ids].sort());
+});
+
+test('test tools: skip time and make all due', () => {
+  const now = Date.UTC(2026, 9, 12);
+  let p = completeLesson(emptyProgress(now), tisch, now);
+  assert.equal(overview([tisch], p, now).reviewsDue.length, 0);
+  p = skipTime(p, LEARNING_STEPS[0]);
+  assert.equal(overview([tisch], p, now).reviewsDue.length, 3, 'all 3 parts due after 4 hours');
+  // answering after skipping behaves like answering 4 hours later
+  const id = Object.keys(p.cards)[0];
+  const after = answerCard(p, id, true, now);
+  assert.equal(after.cards[id].step, 1);
+  assert.equal(after.cards[id].due - now, LEARNING_STEPS[1]);
+  const q = allDueNow(completeLesson(emptyProgress(now), gehen, now), now);
+  assert.equal(overview([gehen], q, now).reviewsDue.length, 3);
 });
 
 console.log(`\n${passed} tests passed`);

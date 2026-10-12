@@ -4,16 +4,27 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { readJSON, remove, writeJSON } from './src/data/storage';
 import { CEFR_LEVELS, levelTotals, loadWords } from './src/data/words';
 import {
-  answerCard, completeLesson, emptyProgress, LESSON_BATCH, overview,
+  allDueNow, answerCard, completeLesson, emptyProgress, LESSON_BATCH, overview, skipTime,
 } from './src/engine/progress';
 import { CardId, Progress, Word, wordKey } from './src/engine/types';
 import { Home } from './src/screens/Home';
 import { Lesson } from './src/screens/Lesson';
 import { Quiz } from './src/screens/Quiz';
 import { Button, T } from './src/ui/kit';
+import { TestPanel } from './src/ui/TestPanel';
+import { Platform } from 'react-native';
 import { color, loadWebFont, size } from './src/ui/theme';
 
 const PROGRESS_KEY = 'progress-v1';
+const TEST_KEY = 'test-mode';
+
+/** ?test turns test mode on (remembered on this device), ?test=off turns it off. */
+function testParam(): boolean | null {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  const v = new URLSearchParams(window.location.search).get('test');
+  if (v === null) return null;
+  return v !== 'off' && v !== '0';
+}
 type Screen = { name: 'home' } | { name: 'lesson'; words: Word[] } | { name: 'review'; ids: CardId[] };
 
 export default function App() {
@@ -25,6 +36,8 @@ export default function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [totals, setTotals] = useState<Record<string, number>>({});
+  const [testMode, setTestMode] = useState(false);
+  const [dataInfo, setDataInfo] = useState({ version: 0, source: '' });
   const progressRef = useRef<Progress | null>(null);
   const opening = useRef(false);
 
@@ -36,6 +49,7 @@ export default function App() {
       const r = await loadWords(levels);
       setWords(r.words);
       setOffline(r.offline);
+      setDataInfo({ version: r.version, source: r.source });
       progressRef.current = { ...saved, openLevels: levels };
       setProgress(progressRef.current);
     } catch {
@@ -45,6 +59,15 @@ export default function App() {
   }, []);
 
   useEffect(() => { loadWebFont(); load(); }, [load]);
+  useEffect(() => {
+    const fromUrl = testParam();
+    if (fromUrl !== null) {
+      setTestMode(fromUrl);
+      writeJSON(TEST_KEY, fromUrl);
+    } else {
+      readJSON<boolean>(TEST_KEY).then((v) => setTestMode(!!v));
+    }
+  }, []);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
 
   const save = useCallback((p: Progress) => {
@@ -57,25 +80,32 @@ export default function App() {
   const byKey = useMemo(() => new Map((words ?? []).map((w) => [wordKey(w), w])), [words]);
   const o = useMemo(() => (words && progress ? overview(words, progress, now) : null), [words, progress, now]);
 
-  // Every word of the open levels has had its lesson → download and open the next level.
-  useEffect(() => {
-    if (!o || !progress || opening.current || screen.name !== 'home') return;
-    if (o.total === 0 || o.learned < o.total) return;
-    const open = progress.openLevels ?? ['A1'];
+  const openNextLevel = useCallback((why: 'finished' | 'test') => {
+    const p0 = progressRef.current;
+    if (!p0 || opening.current) return;
+    const open = p0.openLevels ?? ['A1'];
     const next = CEFR_LEVELS.find((l) => !open.includes(l) && (totals[l] ?? 1) > 0);
-    if (!next) return;
+    if (!next) { if (why === 'test') setMessage('Every level is already open.'); return; }
     opening.current = true;
     const levels = [...open, next];
     loadWords(levels)
       .then((r) => {
-        const p = { ...(progressRef.current ?? progress), openLevels: levels };
         setWords(r.words);
-        save(p);
-        setMessage(`You've had every ${open[open.length - 1]} word. ${next} is open now.`);
+        save({ ...(progressRef.current ?? p0), openLevels: levels });
+        setMessage(why === 'finished'
+          ? `You've had every ${open[open.length - 1]} word. ${next} is open now.`
+          : `${next} is open now (test mode).`);
       })
       .catch(() => setMessage(`Couldn't download the ${next} words yet. They'll load next time you're online.`))
       .finally(() => { opening.current = false; });
-  }, [o, progress, totals, screen.name, save]);
+  }, [totals, save]);
+
+  // Every word of the open levels has had its lesson → download and open the next level.
+  useEffect(() => {
+    if (!o || !progress || screen.name !== 'home') return;
+    if (o.total === 0 || o.learned < o.total) return;
+    openNextLevel('finished');
+  }, [o, progress, screen.name, openNextLevel]);
 
   const onFirstAnswer = useCallback((id: CardId, correct: boolean) => {
     const p = progressRef.current;
@@ -121,6 +151,24 @@ export default function App() {
         openLevels={progress.openLevels ?? ['A1']}
         onLesson={() => { setMessage(null); setScreen({ name: 'lesson', words: o.lessonsAvailable.slice(0, LESSON_BATCH) }); }}
         onReview={() => { setMessage(null); setScreen({ name: 'review', ids: o.reviewsDue }); }}
+        testPanel={testMode ? (
+          <TestPanel
+            info={{ wordsLoaded: words?.length ?? 0, openLevels: progress.openLevels ?? ['A1'],
+              cards: Object.keys(progress.cards).length, dataVersion: dataInfo.version, source: dataInfo.source }}
+            onSkip={(hours) => {
+              save(skipTime(progressRef.current ?? progress, hours * 3_600_000));
+              setNow(Date.now());
+              setMessage(`Skipped ${hours >= 24 ? `${hours / 24} day${hours === 24 ? '' : 's'}` : `${hours} hours`}.`);
+            }}
+            onAllDue={() => {
+              save(allDueNow(progressRef.current ?? progress, Date.now()));
+              setNow(Date.now());
+              setMessage('Every learned card is due now.');
+            }}
+            onOpenNextLevel={() => openNextLevel('test')}
+            onExit={() => { setTestMode(false); writeJSON(TEST_KEY, false); }}
+          />
+        ) : null}
         onReset={async () => {
           await remove(PROGRESS_KEY);
           save({ ...emptyProgress(Date.now()), openLevels: ['A1'] });

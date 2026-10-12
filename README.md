@@ -20,7 +20,22 @@ Words come from [german-vocab-data](https://github.com/whiteboxcat/german-vocab-
   A word counts as learned once all its parts have passed those first steps.
 - **Typing.** ä ö ü ß keys are on screen, and *ae, oe, ue, ss* are accepted too.
 
-Progress is saved on the device for now (browser storage on the web).
+Progress is saved on the device for now (browser storage on the web). There are no accounts yet:
+each browser is its own learner, so a private/incognito window works as a fresh test learner.
+
+## Testing
+
+Open the app with **`?test`** at the end of the link
+(https://whiteboxcat.github.io/german-vocab-app/?test). A test panel appears on the home screen:
+
+- **Skip 4 hours / 1 day / 1 week** moves your schedule forward as if that time had passed, so the
+  next reviews become due straight away.
+- **All reviews due now** brings every learned card up for review.
+- **Open next level** opens the next CEFR level without finishing the current one.
+- It also shows how many words are loaded, from where (Supabase, GitHub or the saved copy) and the
+  data version.
+
+Test mode stays on in that browser until you press **Leave test mode** or open the link with `?test=off`.
 
 ## Data source
 
