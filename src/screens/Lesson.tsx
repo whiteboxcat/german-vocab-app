@@ -5,7 +5,7 @@ import { cardId, facetsFor } from '../engine/cards';
 import { Word, wordKey } from '../engine/types';
 import { Bar, Button, T } from '../ui/kit';
 import { color, size, wordColor } from '../ui/theme';
-import { WordBody, WordHead } from '../ui/WordDetails';
+import { WordBody, WordCard } from '../ui/WordDetails';
 import { Quiz } from './Quiz';
 
 type Props = {
@@ -37,10 +37,10 @@ export function Lesson({ words, allWords, onFinish, onQuit }: Props) {
           <T style={styles.count}>{i + 1} / {words.length}</T>
         </View>
         <Bar value={(i + 1) / words.length} tint={wordColor(w)} />
-        <View style={{ paddingVertical: 24 }} key={wordKey(w)}>
-          <WordHead word={w} />
+        <View style={{ paddingTop: 8 }} key={wordKey(w)}>
+          <WordCard word={w} />
         </View>
-        <WordBody word={w} />
+        <WordBody key={`body-${wordKey(w)}`} word={w} />
         <View style={styles.nav}>
           <Button label="Back" kind="quiet" disabled={i === 0} onPress={() => setI(i - 1)} style={{ flex: 1 }} />
           <Button label={last ? 'Start quiz' : 'Next word'} tint={wordColor(w)}

@@ -15,7 +15,16 @@ export const color = {
   wrong: '#D63A4A',
   rightWash: '#E7F5EE',
   wrongWash: '#FBEBED',
+  verbWash: '#F3EEFC',   // verb cards sit on a violet wash; noun cards are plain white
+  hidden: '#8A94A6',     // noun whose gender is the question: no colour hint
 };
+
+/** Shown on the word card so nouns and verbs never look alike. */
+export function typeLabel(w: Word, genderHidden = false): string {
+  if (w.type === 'verb') return w.separable_prefix ? 'Verb · trennbar' : 'Verb';
+  if (genderHidden || !w.gender) return 'Nomen';
+  return `Nomen · ${{ m: 'maskulin', f: 'feminin', n: 'neutral' }[w.gender]}`;
+}
 
 export const font = Platform.select({
   web: 'Archivo, "Helvetica Neue", Arial, sans-serif',

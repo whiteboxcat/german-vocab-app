@@ -1,7 +1,7 @@
 // One question at a time. Used for the quiz at the end of a lesson and for reviews.
 // Wrong answers come back at the end of the session; only the first try counts for scheduling.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { speak } from '../data/speech';
 import { check, label, parseCardId, promptFor } from '../engine/cards';
 import { shuffleQueue } from '../engine/progress';
@@ -9,7 +9,8 @@ import { CardId, Word } from '../engine/types';
 import { AnswerInput } from '../ui/AnswerInput';
 import { Bar, Button, T } from '../ui/kit';
 import { color, size, wordColor } from '../ui/theme';
-import { WordBody, WordHead } from '../ui/WordDetails';
+import { WordBody, WordCard } from '../ui/WordDetails';
+import { Pop, useShake } from '../ui/motion';
 
 type Props = {
   title: string;
@@ -26,6 +27,7 @@ export function Quiz({ title, cardIds, words, onFirstAnswer, onDone, onQuit }: P
   const [firstTry, setFirstTry] = useState<Record<CardId, boolean>>({});
   const [value, setValue] = useState('');
   const [result, setResult] = useState<{ correct: boolean; note?: string } | null>(null);
+  const [shakeStyle, shake] = useShake();
 
   const current = queue[0];
   const { key, facet } = parseCardId(current ?? '#meaning');
@@ -40,6 +42,7 @@ export function Quiz({ title, cardIds, words, onFirstAnswer, onDone, onQuit }: P
     const verdict = check(word, facet, v.trim());
     setValue(v);
     setResult(verdict);
+    if (!verdict.correct) shake();
     if (!(current in firstTry)) {
       setFirstTry((m) => ({ ...m, [current]: verdict.correct }));
       onFirstAnswer?.(current, verdict.correct);
@@ -74,7 +77,6 @@ export function Quiz({ title, cardIds, words, onFirstAnswer, onDone, onQuit }: P
   }
 
   const tint = result ? (result.correct ? color.right : color.wrong) : undefined;
-  const showWord = facet === 'gender' && !result ? { ...word, article: null } as Word : word;
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -86,19 +88,20 @@ export function Quiz({ title, cardIds, words, onFirstAnswer, onDone, onQuit }: P
         <Bar value={done / total} tint={color.ink} />
 
         <View style={styles.card}>
-          <WordHead word={showWord} />
-          <T style={[styles.ask, { color: facet === 'gender' ? color.ink : wordColor(word) }]}>{prompt.ask}</T>
+          <WordCard word={word} hideGender={facet === 'gender' && !result} ask={prompt.ask} />
         </View>
 
-        <AnswerInput prompt={prompt} value={value} onChange={setValue} onSubmit={submit}
-          locked={!!result} resultTint={tint} />
+        <Animated.View style={shakeStyle}>
+          <AnswerInput prompt={prompt} value={value} onChange={setValue} onSubmit={submit}
+            locked={!!result} resultTint={tint} />
+        </Animated.View>
 
         {!result && prompt.input !== 'choice' ? (
           <Button label="Check" onPress={() => submit(value)} disabled={!value.trim()} />
         ) : null}
 
         {result ? (
-          <View style={[styles.result, { backgroundColor: result.correct ? color.rightWash : color.wrongWash }]}>
+          <Pop style={[styles.result, { backgroundColor: result.correct ? color.rightWash : color.wrongWash }]}>
             <T style={[styles.verdict, { color: tint }]}>{result.correct ? 'Correct' : 'Not quite'}</T>
             {!result.correct ? (
               <T style={styles.answer}>
@@ -107,7 +110,7 @@ export function Quiz({ title, cardIds, words, onFirstAnswer, onDone, onQuit }: P
             ) : null}
             {result.note ? <T style={styles.note}>{result.note}</T> : null}
             {!result.correct ? <T style={styles.note}>You'll see this one again at the end.</T> : null}
-          </View>
+          </Pop>
         ) : null}
 
         {result ? (
@@ -129,7 +132,7 @@ const styles = StyleSheet.create({
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   title: { fontSize: size.md, fontWeight: '600' },
   count: { fontSize: size.sm, color: color.muted },
-  card: { paddingVertical: 28, alignItems: 'center', gap: 10 },
+  card: { paddingTop: 8 },
   ask: { fontSize: size.md, fontWeight: '600' },
   result: { borderRadius: 12, padding: 16, gap: 6 },
   verdict: { fontSize: size.lg, fontWeight: '800' },
