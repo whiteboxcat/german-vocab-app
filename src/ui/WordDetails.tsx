@@ -49,13 +49,15 @@ export function WordCard({ word, hideGender = false, ask, showMeaning = false, c
               ) : null}
               <T style={{ fontSize: big, fontWeight: '800', color: tint, letterSpacing: -0.5 }}>{text}</T>
             </View>
-            <Speaker big tint={tint} onPress={() => speak(hideGender ? text : label(word))} />
           </View>
           {showMeaning && word.english.length ? (
             <T style={styles.meaningLine}>{word.english.slice(0, 3).join(', ')}</T>
           ) : ask ? (
             <T style={[styles.ask, { color: tint }]}>{ask}</T>
           ) : null}
+          <View style={styles.cardFooter}>
+            <Speaker tint={tint} onPress={() => speak(hideGender ? text : label(word))} />
+          </View>
         </View>
       </View>
     </Appear>
@@ -147,7 +149,8 @@ const styles = StyleSheet.create({
   cardInner: { alignItems: 'center', gap: 8, paddingTop: 14, paddingBottom: 18, paddingHorizontal: 16 },
   badge: { borderRadius: 999, paddingVertical: 4, paddingHorizontal: 12, marginBottom: 6 },
   badgeText: { color: '#fff', fontSize: size.xs, fontWeight: '600' },
-  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' },
+  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  cardFooter: { alignSelf: 'stretch', marginTop: 10 },
   wordLine: { flexDirection: 'row', alignItems: 'baseline', flexShrink: 1, flexWrap: 'wrap', justifyContent: 'center' },
   meaningLine: { fontSize: size.lg, color: color.ink, textAlign: 'center', lineHeight: 28, marginTop: 2 },
   ask: { fontSize: size.md, fontWeight: '600' },
