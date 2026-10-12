@@ -16,12 +16,14 @@ type CardProps = {
   word: Word;
   /** The noun's gender is what's being asked: hide the article and every colour hint. */
   hideGender?: boolean;
-  /** Small line under the word, e.g. "Plural" or "Meaning in English". */
+  /** The question, shown under the word while it's being asked (e.g. "Plural"). */
   ask?: string;
+  /** Show the English meaning under the word (lessons, and after answering). */
+  showMeaning?: boolean;
   compact?: boolean;
 };
 
-export function WordCard({ word, hideGender = false, ask, compact = false }: CardProps) {
+export function WordCard({ word, hideGender = false, ask, showMeaning = false, compact = false }: CardProps) {
   const isVerb = word.type === 'verb';
   const tint = hideGender ? color.hidden : wordColor(word);
   const big = compact ? size.xxl : size.word;
@@ -30,7 +32,7 @@ export function WordCard({ word, hideGender = false, ask, compact = false }: Car
     : word.type === 'noun' ? word.lemma : word.infinitive;
 
   return (
-    <Appear key={`${label(word)}|${ask ?? ''}|${hideGender}`}>
+    <Appear key={`${label(word)}|${ask ?? ''}|${hideGender}|${showMeaning}`}>
       <View style={[styles.card, { backgroundColor: isVerb ? color.verbWash : color.surface }]}>
         <View style={[styles.band, { backgroundColor: tint }]} />
         <View style={styles.cardInner}>
@@ -38,16 +40,22 @@ export function WordCard({ word, hideGender = false, ask, compact = false }: Car
             <T style={styles.badgeText}>{typeLabel(word, hideGender)}</T>
           </View>
           <View style={styles.headRow}>
-            {word.type === 'noun' && word.article && !hideGender ? (
-              <T style={{ fontSize: big * 0.55, fontWeight: '600', color: tint, marginRight: 10 }}>{word.article}</T>
-            ) : null}
-            {word.type === 'noun' && hideGender ? (
-              <T style={{ fontSize: big * 0.55, fontWeight: '600', color: color.line, marginRight: 10 }}>___</T>
-            ) : null}
-            <T style={{ fontSize: big, fontWeight: '800', color: tint, letterSpacing: -0.5 }}>{text}</T>
+            <View style={styles.wordLine}>
+              {word.type === 'noun' && word.article && !hideGender ? (
+                <T style={{ fontSize: big * 0.55, fontWeight: '600', color: tint, marginRight: 10 }}>{word.article}</T>
+              ) : null}
+              {word.type === 'noun' && hideGender ? (
+                <T style={{ fontSize: big * 0.55, fontWeight: '600', color: color.line, marginRight: 10 }}>___</T>
+              ) : null}
+              <T style={{ fontSize: big, fontWeight: '800', color: tint, letterSpacing: -0.5 }}>{text}</T>
+            </View>
+            <Speaker big tint={tint} onPress={() => speak(hideGender ? text : label(word))} />
           </View>
-          {ask ? <T style={[styles.ask, { color: tint }]}>{ask}</T> : null}
-          <Speaker tint={tint} onPress={() => speak(hideGender ? text : label(word))} />
+          {showMeaning && word.english.length ? (
+            <T style={styles.meaningLine}>{word.english.slice(0, 3).join(', ')}</T>
+          ) : ask ? (
+            <T style={[styles.ask, { color: tint }]}>{ask}</T>
+          ) : null}
         </View>
       </View>
     </Appear>
@@ -56,7 +64,7 @@ export function WordCard({ word, hideGender = false, ask, compact = false }: Car
 
 /** Kept for older call sites: the card without a question line. */
 export function WordHead({ word, compact = false }: { word: Word; compact?: boolean }) {
-  return <WordCard word={word} compact={compact} hideGender={word.type === 'noun' && !word.article} />;
+  return <WordCard word={word} compact={compact} showMeaning hideGender={word.type === 'noun' && !word.article} />;
 }
 
 function Box({ title, children, delay }: { title: string; children: React.ReactNode; delay: number }) {
@@ -101,9 +109,11 @@ export function WordBody({ word }: { word: Word }) {
 
   return (
     <View style={styles.body}>
-      <Box title="Meaning" delay={60}>
-        <T style={styles.meaning}>{word.english.slice(0, 5).join(', ')}</T>
-      </Box>
+      {word.english.length > 3 ? (
+        <Box title="More meanings" delay={60}>
+          <T style={styles.moreMeanings}>{word.english.slice(3, 8).join(', ')}</T>
+        </Box>
+      ) : null}
 
       {rows.length || chips.length ? (
         <Box title={word.type === 'noun' ? 'Forms' : 'Forms and use'} delay={120}>
@@ -137,7 +147,9 @@ const styles = StyleSheet.create({
   cardInner: { alignItems: 'center', gap: 8, paddingTop: 14, paddingBottom: 18, paddingHorizontal: 16 },
   badge: { borderRadius: 999, paddingVertical: 4, paddingHorizontal: 12, marginBottom: 6 },
   badgeText: { color: '#fff', fontSize: size.xs, fontWeight: '600' },
-  headRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', justifyContent: 'center' },
+  headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap' },
+  wordLine: { flexDirection: 'row', alignItems: 'baseline', flexShrink: 1, flexWrap: 'wrap', justifyContent: 'center' },
+  meaningLine: { fontSize: size.lg, color: color.ink, textAlign: 'center', lineHeight: 28, marginTop: 2 },
   ask: { fontSize: size.md, fontWeight: '600' },
   body: { gap: 12 },
   box: {
@@ -145,12 +157,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, gap: 8,
   },
   boxTitle: { fontSize: size.xs, color: color.muted, fontWeight: '600' },
-  meaning: { fontSize: size.lg, color: color.ink, lineHeight: 28 },
+  moreMeanings: { fontSize: size.md, color: color.muted, lineHeight: 24 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 1, borderColor: color.line },
   rowKey: { color: color.muted, fontSize: size.sm },
   rowVal: { fontSize: size.md, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  example: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  example: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   exampleGap: { borderTopWidth: 1, borderColor: color.line, paddingTop: 10 },
   exDe: { fontSize: size.md },
   exEn: { fontSize: size.sm, color: color.muted, marginTop: 2 },

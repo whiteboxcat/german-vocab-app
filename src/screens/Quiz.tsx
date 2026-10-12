@@ -88,7 +88,7 @@ export function Quiz({ title, cardIds, words, onFirstAnswer, onDone, onQuit }: P
         <Bar value={done / total} tint={color.ink} />
 
         <View style={styles.card}>
-          <WordCard word={word} hideGender={facet === 'gender' && !result} ask={prompt.ask} />
+          <WordCard word={word} hideGender={facet === 'gender' && !result} ask={prompt.ask} showMeaning={!!result} />
         </View>
 
         <Animated.View style={shakeStyle}>

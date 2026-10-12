@@ -38,7 +38,7 @@ export function Lesson({ words, allWords, onFinish, onQuit }: Props) {
         </View>
         <Bar value={(i + 1) / words.length} tint={wordColor(w)} />
         <View style={{ paddingTop: 8 }} key={wordKey(w)}>
-          <WordCard word={w} />
+          <WordCard word={w} showMeaning />
         </View>
         <WordBody key={`body-${wordKey(w)}`} word={w} />
         <View style={styles.nav}>

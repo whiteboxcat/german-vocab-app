@@ -46,11 +46,41 @@ export function Bar({ value, tint = color.ink }: { value: number; tint?: string 
   );
 }
 
-export function Speaker({ onPress, tint = color.muted }: { onPress: () => void; tint?: string }) {
+/** A speaker drawn from plain shapes (no icon font needed): box, cone, two sound waves. */
+export function SpeakerIcon({ tint, scale = 1 }: { tint: string; scale?: number }) {
+  const u = (n: number) => n * scale;
+  return (
+    <View style={{ width: u(22), height: u(18), flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ width: u(5), height: u(7), backgroundColor: tint, borderRadius: u(1) }} />
+      <View style={{
+        width: 0, height: 0, marginLeft: -u(1),
+        borderTopWidth: u(7), borderBottomWidth: u(7), borderRightWidth: u(7),
+        borderTopColor: 'transparent', borderBottomColor: 'transparent', borderRightColor: tint,
+      }} />
+      <View style={{
+        width: u(6), height: u(8), marginLeft: u(1.5), borderWidth: u(2), borderColor: 'transparent',
+        borderRightColor: tint, borderRadius: u(8),
+      }} />
+      <View style={{
+        width: u(9), height: u(14), marginLeft: -u(5), borderWidth: u(2), borderColor: 'transparent',
+        borderRightColor: tint, borderRadius: u(12),
+      }} />
+    </View>
+  );
+}
+
+/** Round "listen" button with a speaker icon. `big` is the one next to the word. */
+export function Speaker({ onPress, tint = color.muted, big = false }: { onPress: () => void; tint?: string; big?: boolean }) {
+  const d = big ? 44 : 34;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Listen" onPress={onPress} hitSlop={8}
-      style={styles.speaker}>
-      <T style={{ color: tint, fontSize: size.sm, fontWeight: '600' }}>Listen</T>
+      style={(state) => {
+        const s = state as { pressed: boolean; hovered?: boolean; focused?: boolean };
+        return [styles.speaker, { width: d, height: d, borderRadius: d / 2, borderColor: tint },
+          (s.pressed || s.hovered) && { backgroundColor: tint + '1A' },
+          s.focused && ({ outlineColor: tint, outlineWidth: 2, outlineStyle: 'solid', outlineOffset: 2 } as ViewStyle)];
+      }}>
+      <SpeakerIcon tint={tint} scale={big ? 1 : 0.8} />
     </Pressable>
   );
 }
@@ -71,6 +101,6 @@ const styles = StyleSheet.create({
   btnText: { fontSize: size.md, fontWeight: '600' },
   bar: { height: 6, borderRadius: 3, backgroundColor: color.line, overflow: 'hidden' },
   barFill: { height: 6, borderRadius: 3 },
-  speaker: { paddingVertical: 4, paddingHorizontal: 2 },
+  speaker: { borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   chip: { borderWidth: 1, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
 });
