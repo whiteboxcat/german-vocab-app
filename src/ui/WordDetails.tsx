@@ -117,6 +117,19 @@ export function WordBody({ word }: { word: Word }) {
         </Box>
       ) : null}
 
+      {word.synonyms?.length ? (
+        <Box title="Synonyme" delay={90}>
+          <View style={styles.chips}>
+            {word.synonyms.slice(0, 8).map((syn) => (
+              <View key={syn} style={[styles.syn, { borderColor: wordColor(word) }]}>
+                <T style={[styles.synText, { color: wordColor(word) }]}>{syn}</T>
+              </View>
+            ))}
+          </View>
+          <T style={styles.synNote}>Exams often replace a word with one of these.</T>
+        </Box>
+      ) : null}
+
       {rows.length || chips.length ? (
         <Box title={word.type === 'noun' ? 'Forms' : 'Forms and use'} delay={120}>
           {chips.length ? (
@@ -165,6 +178,9 @@ const styles = StyleSheet.create({
   rowKey: { color: color.muted, fontSize: size.sm },
   rowVal: { fontSize: size.md, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  syn: { borderWidth: 1, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: color.surface },
+  synText: { fontSize: size.md, fontWeight: '600' },
+  synNote: { fontSize: size.xs, color: color.muted },
   example: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   exampleGap: { borderTopWidth: 1, borderColor: color.line, paddingTop: 10 },
   exDe: { fontSize: size.md },

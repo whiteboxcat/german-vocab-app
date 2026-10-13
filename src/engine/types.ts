@@ -16,6 +16,10 @@ export type Noun = {
   level: string | null;
   english: string[];
   examples: Example[];
+  /** German synonyms (OpenThesaurus via verbformen), e.g. waschen → reinigen, sauber machen. */
+  synonyms?: string[];
+  /** How common the word is in written + spoken German (log scale, ~3 rare … 7 very common). */
+  zipf?: number;
   ipa?: string[];
   audio?: Record<string, string>;
   source_url: string;
@@ -42,6 +46,10 @@ export type Verb = {
   imperative?: string[];
   english: string[];
   examples: Example[];
+  /** German synonyms (OpenThesaurus via verbformen), e.g. waschen → reinigen, sauber machen. */
+  synonyms?: string[];
+  /** How common the word is in written + spoken German (log scale, ~3 rare … 7 very common). */
+  zipf?: number;
   ipa?: string[];
   audio?: Record<string, string>;
   source_url: string;
