@@ -10,6 +10,7 @@ import { label } from '../engine/cards';
 import { Word } from '../engine/types';
 import { Chip, Speaker, T } from './kit';
 import { Appear } from './motion';
+import { Conjugation } from './Conjugation';
 import { color, size, typeLabel, wordColor } from './theme';
 
 type CardProps = {
@@ -136,6 +137,7 @@ export function WordBody({ word }: { word: Word }) {
             <View style={styles.chips}>{chips.map((c) => <Chip key={c.t} text={c.t} tint={c.c} />)}</View>
           ) : null}
           {rows.map((r, i) => <Row key={r.k} {...r} last={i === rows.length - 1} />)}
+          {word.type === 'verb' ? <Conjugation verb={word} tint={color.verb} /> : null}
         </Box>
       ) : null}
 
