@@ -5,7 +5,8 @@ import { checkMeaning, checkPlural, checkVerbForm } from '../src/engine/answer';
 import { check, facetsFor, promptFor } from '../src/engine/cards';
 import { intervalDays, LEARNING_STEPS, review, newCardAfterLesson } from '../src/engine/fsrs';
 import {
-  allDueNow, answerCard, completeLesson, emptyProgress, LEVEL_SIZE, overview, PASS_PER_LEVEL, shuffleQueue, skipTime,
+  allDueNow, answerCard, completeLesson, emptyProgress, focusWords, LEVEL_SIZE, overview, PASS_PER_LEVEL,
+  RESUME_PER_DAY, setFocus, shuffleQueue, skipTime,
 } from '../src/engine/progress';
 import { Noun, Verb, Word } from '../src/engine/types';
 
@@ -139,6 +140,46 @@ test('test tools: skip time and make all due', () => {
   assert.equal(after.cards[id].due - now, LEARNING_STEPS[1]);
   const q = allDueNow(completeLesson(emptyProgress(now), gehen, now), now);
   assert.equal(overview([gehen], q, now).reviewsDue.length, 3);
+});
+
+test('focus: nouns only pauses verbs, keeps their progress, unlocks by nouns', () => {
+  const now = Date.UTC(2026, 9, 16);
+  const ns: Word[] = Array.from({ length: 12 }, (_, i) => ({ ...tisch, id: `N${i}`, lemma: `Nomen${i}`, rank: 2 * i }));
+  const vs: Word[] = Array.from({ length: 12 }, (_, i) => ({ ...gehen, id: `V${i}`, infinitive: `verb${i}en`, rank: 2 * i + 1 }));
+  const all = [...ns, ...vs];
+  let p = emptyProgress(now);
+  // learn 2 verbs with "both"
+  for (const v of vs.slice(0, 2)) p = completeLesson(p, v, now);
+  // switch to nouns only
+  p = setFocus(p, 'noun', now);
+  const later = now + 5 * 3_600_000;
+  let o = overview(focusWords(all, p.focus), p, later);
+  assert.ok(o.lessonsAvailable.every((w) => w.type === 'noun'), 'only noun lessons');
+  assert.equal(o.reviewsDue.length, 0, 'verb reviews paused');
+  assert.equal(Object.keys(p.cards).length, 6, 'verb progress kept');
+  assert.equal(o.total, 12);
+  // the next CEFR level opens when all *nouns* had a lesson, verbs don't block it
+  for (const n of ns) p = completeLesson(p, n, now);
+  o = overview(focusWords(all, p.focus), p, later);
+  assert.equal(o.learned, o.total, 'all nouns learned → level can open even though most verbs were never learned');
+  // switch verbs back on: their reviews return
+  p = setFocus(p, 'both', later);
+  o = overview(focusWords(all, p.focus), p, later);
+  assert.ok(o.reviewsDue.some((id) => id.startsWith('verb:')), 'verb reviews are back');
+});
+
+test('focus: a big paused backlog comes back spread over days', () => {
+  const now = Date.UTC(2026, 9, 16);
+  const vs: Word[] = Array.from({ length: 40 }, (_, i) => ({ ...gehen, id: `V${i}`, infinitive: `verb${i}en` }));
+  let p = emptyProgress(now);
+  for (const v of vs) p = completeLesson(p, v, now);          // 40 verbs × 3 parts = 120 cards
+  p = setFocus(p, 'noun', now);
+  const monthLater = now + 30 * 86_400_000;
+  p = setFocus(p, 'verb', monthLater);
+  const dueToday = Object.values(p.cards).filter((c) => c.due <= monthLater).length;
+  assert.equal(dueToday, RESUME_PER_DAY);
+  const dueIn2Days = Object.values(p.cards).filter((c) => c.due <= monthLater + 2 * 86_400_000).length;
+  assert.equal(dueIn2Days, 120);
 });
 
 console.log(`\n${passed} tests passed`);

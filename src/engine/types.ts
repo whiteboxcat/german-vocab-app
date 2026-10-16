@@ -89,7 +89,11 @@ export type Progress = {
   createdAt: number;
   /** CEFR levels whose words are downloaded and taught. Starts with A1; the next opens when all are learned. */
   openLevels?: string[];
+  /** What the learner chose to study. Missing = not chosen yet (the app asks on first open). */
+  focus?: Focus;
 };
+
+export type Focus = 'both' | 'noun' | 'verb';
 
 export const wordKey = (w: Word) => `${w.type}:${w.id}`;
 export const headword = (w: Word) => (w.type === 'noun' ? w.lemma : w.infinitive);

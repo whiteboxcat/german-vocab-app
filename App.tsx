@@ -2,9 +2,10 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { readJSON, remove, writeJSON } from './src/data/storage';
-import { CEFR_LEVELS, levelTotals, loadWords } from './src/data/words';
+import { CEFR_LEVELS, LevelTotals, levelTotals, loadWords } from './src/data/words';
+import { FocusPicker, focusName } from './src/screens/FocusPicker';
 import {
-  allDueNow, answerCard, completeLesson, emptyProgress, LESSON_BATCH, overview, skipTime,
+  allDueNow, answerCard, completeLesson, emptyProgress, focusWords, LESSON_BATCH, overview, setFocus, skipTime,
 } from './src/engine/progress';
 import { CardId, Progress, Word, wordKey } from './src/engine/types';
 import { Home } from './src/screens/Home';
@@ -25,7 +26,7 @@ function testParam(): boolean | null {
   if (v === null) return null;
   return v !== 'off' && v !== '0';
 }
-type Screen = { name: 'home' } | { name: 'lesson'; words: Word[] } | { name: 'review'; ids: CardId[] };
+type Screen = { name: 'home' } | { name: 'focus' } | { name: 'lesson'; words: Word[] } | { name: 'review'; ids: CardId[] };
 
 export default function App() {
   const [words, setWords] = useState<Word[] | null>(null);
@@ -35,7 +36,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const [message, setMessage] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [totals, setTotals] = useState<Record<string, number>>({});
+  const [totals, setTotals] = useState<LevelTotals>({});
   const [testMode, setTestMode] = useState(false);
   const [dataInfo, setDataInfo] = useState({ version: 0, source: '' });
   const progressRef = useRef<Progress | null>(null);
@@ -78,13 +79,21 @@ export default function App() {
   useEffect(() => { progressRef.current = progress; }, [progress]);
 
   const byKey = useMemo(() => new Map((words ?? []).map((w) => [wordKey(w), w])), [words]);
-  const o = useMemo(() => (words && progress ? overview(words, progress, now) : null), [words, progress, now]);
+  // Only the chosen type (nouns, verbs or both) counts for lessons, reviews and unlocking levels.
+  const focused = useMemo(() => (words && progress ? focusWords(words, progress.focus) : null), [words, progress]);
+  const o = useMemo(() => (focused && progress ? overview(focused, progress, now) : null), [focused, progress, now]);
+  const typeTotal = useCallback((lvl: string) => {
+    const t = totals[lvl];
+    if (!t) return undefined;
+    const f = progressRef.current?.focus;
+    return f === 'noun' ? t.nouns : f === 'verb' ? t.verbs : t.nouns + t.verbs;
+  }, [totals]);
 
   const openNextLevel = useCallback((why: 'finished' | 'test') => {
     const p0 = progressRef.current;
     if (!p0 || opening.current) return;
     const open = p0.openLevels ?? ['A1'];
-    const next = CEFR_LEVELS.find((l) => !open.includes(l) && (totals[l] ?? 1) > 0);
+    const next = CEFR_LEVELS.find((l) => !open.includes(l) && (typeTotal(l) ?? 1) > 0);
     if (!next) { if (why === 'test') setMessage('Every level is already open.'); return; }
     opening.current = true;
     const levels = [...open, next];
@@ -98,11 +107,11 @@ export default function App() {
       })
       .catch(() => setMessage(`Couldn't download the ${next} words yet. They'll load next time you're online.`))
       .finally(() => { opening.current = false; });
-  }, [totals, save]);
+  }, [typeTotal, save]);
 
   // Every word of the open levels has had its lesson → download and open the next level.
   useEffect(() => {
-    if (!o || !progress || screen.name !== 'home') return;
+    if (!o || !progress || !progress.focus || screen.name !== 'home') return;
     if (o.total === 0 || o.learned < o.total) return;
     openNextLevel('finished');
   }, [o, progress, screen.name, openNextLevel]);
@@ -122,6 +131,18 @@ export default function App() {
     );
   } else if (!o || !progress) {
     body = <View style={styles.center}><ActivityIndicator color={color.ink} /></View>;
+  } else if (!progress.focus || screen.name === 'focus') {
+    body = (
+      <FocusPicker current={progress.focus}
+        onCancel={progress.focus ? () => setScreen({ name: 'home' }) : undefined}
+        onChoose={(f) => {
+          const first = !progress.focus;
+          save(setFocus(progressRef.current ?? progress, f, Date.now()));
+          setNow(Date.now());
+          setMessage(first ? null : `Now learning: ${focusName(f).toLowerCase()}.`);
+          setScreen({ name: 'home' });
+        }} />
+    );
   } else if (screen.name === 'lesson') {
     body = (
       <Lesson words={screen.words} allWords={byKey} onQuit={() => setScreen({ name: 'home' })}
@@ -147,7 +168,8 @@ export default function App() {
     );
   } else {
     body = (
-      <Home o={o} offline={offline} message={message} totals={totals}
+      <Home o={o} offline={offline} message={message} typeTotal={typeTotal}
+        focusLabel={focusName(progress.focus)} onChangeFocus={() => { setMessage(null); setScreen({ name: 'focus' }); }}
         openLevels={progress.openLevels ?? ['A1']}
         onLesson={() => { setMessage(null); setScreen({ name: 'lesson', words: o.lessonsAvailable.slice(0, LESSON_BATCH) }); }}
         onReview={() => { setMessage(null); setScreen({ name: 'review', ids: o.reviewsDue }); }}
@@ -171,7 +193,7 @@ export default function App() {
         ) : null}
         onReset={async () => {
           await remove(PROGRESS_KEY);
-          save({ ...emptyProgress(Date.now()), openLevels: ['A1'] });
+          save({ ...emptyProgress(Date.now()), openLevels: ['A1'], focus: progress.focus });
           setWords((ws) => (ws ?? []).filter((w) => w.level === 'A1'));
           setMessage('Progress deleted. Start again with your first lesson.');
         }} />

@@ -2,7 +2,7 @@
 
 import { cardId, facetsFor, parseCardId } from './cards';
 import { isGraduated, newCardAfterLesson, review } from './fsrs';
-import { CardId, CardState, Progress, Word, headword, wordKey } from './types';
+import { CardId, CardState, Focus, Progress, Word, headword, wordKey } from './types';
 
 /** Words per level. A level unlocks once PASS_PER_LEVEL words of the previous ones are learned. */
 export const LEVEL_SIZE = 10;
@@ -126,4 +126,37 @@ export function allDueNow(p: Progress, now: number): Progress {
   const cards: Progress['cards'] = {};
   for (const [id, c] of Object.entries(p.cards)) cards[id] = { ...c, due: Math.min(c.due, now) };
   return { ...p, cards };
+}
+
+// ---------------------------------------------------------------- focus: nouns, verbs or both
+/** Old reviews of a paused type come back at most this many per day when it's switched on again. */
+export const RESUME_PER_DAY = 50;
+
+export const inFocus = (type: 'noun' | 'verb', focus: Focus | undefined) =>
+  !focus || focus === 'both' || focus === type;
+
+/** Only the words of the chosen type. Everything else (lessons, reviews, levels) is computed from these,
+ *  so the other type is paused: its cards keep their schedule but don't come up. */
+export function focusWords(words: Word[], focus: Focus | undefined): Word[] {
+  return words.filter((w) => inFocus(w.type, focus));
+}
+
+/**
+ * Change what's being studied. Progress of every word is kept. When a paused type is switched on
+ * again, its reviews that fell due in the meantime are spread out (RESUME_PER_DAY per day,
+ * most overdue first) instead of all landing at once.
+ */
+export function setFocus(p: Progress, focus: Focus, now: number): Progress {
+  const before = p.focus ?? 'both';
+  const resumed = (['noun', 'verb'] as const).filter((t) => !inFocus(t, before) && inFocus(t, focus));
+  if (!resumed.length) return { ...p, focus };
+  const overdue = Object.values(p.cards)
+    .filter((c) => resumed.includes(parseCardId(c.id).key.split(':')[0] as 'noun' | 'verb') && c.due <= now)
+    .sort((a, b) => a.due - b.due);
+  const cards = { ...p.cards };
+  overdue.forEach((c, i) => {
+    const day = Math.floor(i / RESUME_PER_DAY);
+    cards[c.id] = { ...c, due: day === 0 ? c.due : now + day * 86_400_000 };
+  });
+  return { ...p, focus, cards };
 }

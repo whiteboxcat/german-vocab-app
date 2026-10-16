@@ -119,15 +119,17 @@ export async function loadWords(levels: string[]): Promise<LoadResult> {
   }
 }
 
-/** How many words each level has (from the data's meta), for the progress list. */
-export async function levelTotals(): Promise<Record<string, number>> {
+/** How many nouns and verbs each level has (from the data's meta), for the progress list. */
+export type LevelTotals = Record<string, { nouns: number; verbs: number }>;
+
+export async function levelTotals(): Promise<LevelTotals> {
   try {
     const row = useSupabase()
       ? (await getJSON(`${SUPABASE_URL}/rest/v1/meta?key=eq.counts_by_level&select=value`, sbHeaders()))?.[0]?.value
       : (await getJSON(`${DATA_FALLBACK_BASE}/meta.json`))?.counts_by_level;
-    const out: Record<string, number> = {};
-    for (const [lvl, c] of Object.entries((row ?? {}) as Record<string, { nouns: number; verbs: number }>)) {
-      out[lvl] = (c.nouns ?? 0) + (c.verbs ?? 0);
+    const out: LevelTotals = {};
+    for (const [lvl, c] of Object.entries((row ?? {}) as Record<string, { nouns?: number; verbs?: number }>)) {
+      out[lvl] = { nouns: c.nouns ?? 0, verbs: c.verbs ?? 0 };
     }
     return out;
   } catch {

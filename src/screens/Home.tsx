@@ -7,7 +7,9 @@ import { color, size } from '../ui/theme';
 
 type Props = {
   o: Overview;
-  totals: Record<string, number>;
+  typeTotal: (level: string) => number | undefined;
+  focusLabel: string;
+  onChangeFocus: () => void;
   openLevels: string[];
   offline: boolean;
   message: string | null;
@@ -28,7 +30,7 @@ function untilText(ts: number | null, now = Date.now()): string {
 
 const CEFR = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-export function Home({ o, totals, openLevels, offline, message, onLesson, onReview, onReset, testPanel }: Props) {
+export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offline, message, onLesson, onReview, onReset, testPanel }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const lessonCount = Math.min(LESSON_BATCH, o.lessonsAvailable.length);
   const passedInLevel = PASS_PER_LEVEL - o.toNextLevel;
@@ -43,6 +45,14 @@ export function Home({ o, totals, openLevels, offline, message, onLesson, onRevi
             <T style={[styles.brand, { color: color.das }]}>das</T>
           </T>
           {offline ? <T style={styles.offline}>Offline: using saved words</T> : null}
+        </View>
+
+        <View style={styles.focusRow}>
+          <T style={styles.focusText}>Learning: <T style={styles.focusName}>{focusLabel}</T></T>
+          <Pressable accessibilityRole="button" onPress={onChangeFocus} hitSlop={8}
+            style={(state) => [styles.focusChange, (state as { hovered?: boolean }).hovered && { backgroundColor: color.line }]}>
+            <T style={styles.focusChangeText}>Change</T>
+          </Pressable>
         </View>
 
         {message ? <T style={styles.message}>{message}</T> : null}
@@ -79,7 +89,7 @@ export function Home({ o, totals, openLevels, offline, message, onLesson, onRevi
         <View style={styles.cefr}>
           {CEFR.map((cefr) => {
             const loaded = o.byCefr.find((c) => c.cefr === cefr);
-            const total = Math.max(totals[cefr] ?? 0, loaded?.total ?? 0);
+            const total = Math.max(typeTotal(cefr) ?? 0, loaded?.total ?? 0);
             if (!total) return null;
             const isOpen = openLevels.includes(cefr);
             const learned = loaded?.learned ?? 0;
@@ -119,6 +129,11 @@ export function Home({ o, totals, openLevels, offline, message, onLesson, onRevi
 
 const styles = StyleSheet.create({
   wrap: { width: '100%', maxWidth: 560, alignSelf: 'center', padding: 20, gap: 28 },
+  focusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: -14 },
+  focusText: { fontSize: size.sm, color: color.muted },
+  focusName: { fontSize: size.sm, color: color.ink, fontWeight: '600' },
+  focusChange: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: color.line },
+  focusChangeText: { fontSize: size.sm, fontWeight: '600' },
   brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' },
   brand: { fontSize: size.lg, fontWeight: '800' },
   offline: { fontSize: size.xs, color: color.muted },

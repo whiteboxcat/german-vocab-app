@@ -20,6 +20,11 @@ Words come from [german-vocab-data](https://github.com/whiteboxcat/german-vocab-
   A word counts as learned once all its parts have passed those first steps.
 - **Typing.** ä ö ü ß keys are on screen, and *ae, oe, ue, ss* are accepted too.
 
+**Nouns, verbs or both.** On first open the app asks what to learn (default: both, recommended).
+It can be changed anytime from the home screen. The type you don't pick is paused: its lessons and
+reviews stop, its progress is kept, and levels unlock by the chosen type only. Switching a paused
+type back on brings its overdue reviews back at up to 50 a day.
+
 Progress is saved on the device for now (browser storage on the web). There are no accounts yet:
 each browser is its own learner, so a private/incognito window works as a fresh test learner.
 
