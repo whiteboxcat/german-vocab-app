@@ -38,12 +38,40 @@ export function levenshtein(a: string, b: string): number {
   return prev[b.length];
 }
 
-/** Plural: "Tische" or "die Tische". */
+/**
+ * All accepted spellings of a form, the usual one first. verbformen writes alternatives with "/"
+ * and optional letters in brackets:
+ *   "Männer/Mannen"         → Männer, Mannen
+ *   "Amt(s)zeiten"          → Amtszeiten, Amtzeiten
+ *   "wurde/ward los"        → wurde los, ward los
+ *   "hat umgehauen/umgehaut"→ hat umgehauen, hat umgehaut
+ */
+export function expandForms(form: string): string[] {
+  const optional = (word: string): string[] =>
+    /\(([^)]*)\)/.test(word)
+      ? [word.replace(/\(([^)]*)\)/g, '$1'), word.replace(/\([^)]*\)/g, '')]
+      : [word];
+  let out = [''];
+  for (const token of form.trim().split(/\s+/)) {
+    const options = token.split('/').filter(Boolean).flatMap(optional);
+    out = out.flatMap((prefix) => options.map((o) => (prefix ? `${prefix} ${o}` : o)));
+  }
+  return [...new Set(out.filter(Boolean))];
+}
+
+/** "Männer/Mannen" → "Männer (also Mannen)" for showing the answer. */
+export function displayForms(form: string, lead = ''): string {
+  const [main, ...rest] = expandForms(form);
+  const pre = lead ? `${lead} ` : '';
+  return rest.length ? `${pre}${main} (also ${rest.join(', ')})` : `${pre}${main ?? form}`;
+}
+
+/** Plural: "Tische" or "die Tische". Any listed alternative counts. */
 export function checkPlural(input: string, plural: string): Verdict {
   const got = stripLead(foldGerman(input), ['die']);
-  const want = stripLead(foldGerman(plural), ['die']);
-  if (got === want) return { correct: true };
-  if (got && want.startsWith(got) && want.length - got.length <= 2) {
+  const wants = expandForms(plural).map((p) => stripLead(foldGerman(p), ['die']));
+  if (wants.includes(got)) return { correct: true };
+  if (got && wants.some((w) => w.startsWith(got) && w.length - got.length <= 2)) {
     return { correct: false, note: 'Almost: check the ending.' };
   }
   return { correct: false };
@@ -52,8 +80,9 @@ export function checkPlural(input: string, plural: string): Verdict {
 /** A verb form like "rief an" or "hat angerufen"; "er rief an" is fine too. */
 export function checkVerbForm(input: string, expected: string, kind: 'praeteritum' | 'perfekt'): Verdict {
   const got = stripLead(foldGerman(input), ['er', 'sie', 'es']);
-  const want = foldGerman(expected);
-  if (got === want) return { correct: true };
+  const all = expandForms(expected).map(foldGerman);
+  if (all.includes(got)) return { correct: true };
+  const want = all[0] ?? foldGerman(expected);
   if (kind === 'perfekt') {
     const [gAux, ...gRest] = got.split(' ');
     const [wAux, ...wRest] = want.split(' ');

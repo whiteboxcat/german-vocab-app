@@ -6,6 +6,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { speak } from '../data/speech';
+import { displayForms } from '../engine/answer';
 import { label } from '../engine/cards';
 import { Word } from '../engine/types';
 import { Chip, Speaker, T } from './kit';
@@ -93,13 +94,13 @@ function Row({ k, v, tint, last }: { k: string; v: string; tint?: string; last?:
 export function WordBody({ word }: { word: Word }) {
   const rows: { k: string; v: string; tint?: string }[] = [];
   if (word.type === 'noun') {
-    if (word.plural && !word.singular_only) rows.push({ k: 'Plural', v: `die ${word.plural}`, tint: color.die });
+    if (word.plural && !word.singular_only) rows.push({ k: 'Plural', v: displayForms(word.plural, 'die'), tint: color.die });
     if (word.singular_only) rows.push({ k: 'Plural', v: 'none (singular only)' });
     if (word.genitive) rows.push({ k: 'Genitiv', v: `${word.article === 'die' ? 'der' : 'des'} ${word.genitive}` });
   } else {
     if (word.present_3sg) rows.push({ k: 'Präsens', v: `er ${word.present_3sg}` });
-    if (word.praeteritum_3sg) rows.push({ k: 'Präteritum', v: `er ${word.praeteritum_3sg}` });
-    if (word.perfekt_3sg) rows.push({ k: 'Perfekt', v: `er ${word.perfekt_3sg}`, tint: color.verb });
+    if (word.praeteritum_3sg) rows.push({ k: 'Präteritum', v: displayForms(word.praeteritum_3sg, 'er') });
+    if (word.perfekt_3sg) rows.push({ k: 'Perfekt', v: displayForms(word.perfekt_3sg, 'er'), tint: color.verb });
   }
   const chips = word.type === 'verb' ? [
     ...(word.separable_prefix ? [{ t: `trennbar: ${word.separable_prefix}-`, c: color.verb }] : []),

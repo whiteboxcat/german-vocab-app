@@ -1,4 +1,4 @@
-import { checkMeaning, checkPlural, checkVerbForm, Verdict } from './answer';
+import { checkMeaning, checkPlural, checkVerbForm, displayForms, Verdict } from './answer';
 import { CardId, Facet, Word, headword, wordKey } from './types';
 
 export const cardId = (w: Word, f: Facet): CardId => `${wordKey(w)}#${f}`;
@@ -46,7 +46,7 @@ export function promptFor(w: Word, facet: Facet): Prompt {
           answer: w.article ?? '' };
       case 'plural':
         return { word: w.lemma, article: w.article, ask: 'Plural', inputPrefix: 'die', input: 'german',
-          answer: w.plural ?? '' };
+          answer: displayForms(w.plural ?? '') };
       default:
         return { word: w.lemma, article: w.article, ask: 'Meaning in English', input: 'english',
           answer: w.english.slice(0, 3).join(', ') };
@@ -55,10 +55,10 @@ export function promptFor(w: Word, facet: Facet): Prompt {
   switch (facet) {
     case 'praeteritum':
       return { word: w.infinitive, ask: 'Präteritum', inputPrefix: 'er', input: 'german',
-        answer: w.praeteritum_3sg ?? '' };
+        answer: displayForms(w.praeteritum_3sg ?? '') };
     case 'perfekt':
       return { word: w.infinitive, ask: 'Perfekt', inputPrefix: 'er', input: 'german',
-        answer: w.perfekt_3sg ?? '' };
+        answer: displayForms(w.perfekt_3sg ?? '') };
     default:
       return { word: w.infinitive, ask: 'Meaning in English', input: 'english',
         answer: w.english.slice(0, 3).join(', ') };

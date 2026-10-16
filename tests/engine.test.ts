@@ -1,7 +1,8 @@
 // Engine tests on real words from german-vocab-data. Run: npx tsx tests/engine.test.ts
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { checkMeaning, checkPlural, checkVerbForm } from '../src/engine/answer';
+import { checkMeaning, checkPlural, checkVerbForm, displayForms, expandForms } from '../src/engine/answer';
+import { existsSync, readdirSync } from 'node:fs';
 import { check, facetsFor, promptFor } from '../src/engine/cards';
 import { intervalDays, LEARNING_STEPS, review, newCardAfterLesson } from '../src/engine/fsrs';
 import {
@@ -180,6 +181,42 @@ test('focus: a big paused backlog comes back spread over days', () => {
   assert.equal(dueToday, RESUME_PER_DAY);
   const dueIn2Days = Object.values(p.cards).filter((c) => c.due <= monthLater + 2 * 86_400_000).length;
   assert.equal(dueIn2Days, 120);
+});
+
+test('alternatives: Männer/Mannen, Amt(s)zeiten, wurde/ward', () => {
+  assert.ok(checkPlural('Männer', 'Männer/Mannen').correct, 'the usual plural is right');
+  assert.ok(checkPlural('die Maenner', 'Männer/Mannen').correct);
+  assert.ok(checkPlural('Mannen', 'Männer/Mannen').correct, 'the rare one is right too');
+  assert.ok(!checkPlural('Manner', 'Männer/Mannen').correct);
+  assert.equal(displayForms('Männer/Mannen', 'die'), 'die Männer (also Mannen)');
+  assert.deepEqual(expandForms('Amt(s)zeiten'), ['Amtszeiten', 'Amtzeiten']);
+  assert.ok(checkPlural('Babyschuhe', 'Babyschuh(e)').correct && checkPlural('Babyschuh', 'Babyschuh(e)').correct);
+  assert.ok(checkVerbForm('wurde', 'wurde/ward', 'praeteritum').correct);
+  assert.ok(checkVerbForm('er ward los', 'wurde/ward los', 'praeteritum').correct);
+  assert.ok(checkVerbForm('hat umgehaut', 'hat umgehauen/umgehaut', 'perfekt').correct);
+  assert.equal(displayForms('wurde/ward', 'er'), 'er wurde (also ward)');
+});
+
+test('every real noun and verb accepts each of its listed forms', () => {
+  const root = '/home/claude/german-vocab-data/data/levels';
+  if (!existsSync(root)) return;                      // only runs where the data repo is checked out
+  let n = 0;
+  for (const lvl of readdirSync(root)) {
+    const ns: Noun[] = existsSync(`${root}/${lvl}/nouns.json`) ? JSON.parse(readFileSync(`${root}/${lvl}/nouns.json`, 'utf8')) : [];
+    const vs: Verb[] = existsSync(`${root}/${lvl}/verbs.json`) ? JSON.parse(readFileSync(`${root}/${lvl}/verbs.json`, 'utf8')) : [];
+    for (const w of ns) {
+      if (!w.plural) continue;
+      for (const f of expandForms(w.plural)) { assert.ok(checkPlural(f, w.plural).correct, `${w.lemma}: ${f}`); n++; }
+      assert.ok(!/[/()]/.test(displayForms(w.plural).split(' (also')[0]), `${w.lemma} shows a clean main form`);
+    }
+    for (const v of vs) {
+      for (const [x, kind] of [[v.praeteritum_3sg, 'praeteritum'], [v.perfekt_3sg, 'perfekt']] as const) {
+        if (!x) continue;
+        for (const f of expandForms(x)) { assert.ok(checkVerbForm(f, x, kind).correct, `${v.infinitive}: ${f}`); n++; }
+      }
+    }
+  }
+  console.log(`   (${n} real forms checked)`);
 });
 
 console.log(`\n${passed} tests passed`);
