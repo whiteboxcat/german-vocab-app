@@ -58,6 +58,7 @@ export function FocusPicker({ current, onChoose, onCancel }: Props) {
                 <Pressable
                   accessibilityRole="radio"
                   accessibilityState={{ checked: on }}
+                  aria-checked={on}
                   onPress={() => setPicked(opt.focus)}
                   style={(state) => {
                     const s = state as { hovered?: boolean; focused?: boolean };
