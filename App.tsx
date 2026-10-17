@@ -18,6 +18,8 @@ import { color, loadWebFont, size } from './src/ui/theme';
 
 const PROGRESS_KEY = 'progress-v1';
 const TEST_KEY = 'test-mode';
+const NUDGE_KEY = 'kofi-nudge-day';
+const today = () => new Date().toISOString().slice(0, 10);
 
 /** ?test turns test mode on (remembered on this device), ?test=off turns it off. */
 function testParam(): boolean | null {
@@ -35,6 +37,18 @@ export default function App() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [screen, setScreen] = useState<Screen>({ name: 'home' });
   const [message, setMessage] = useState<string | null>(null);
+  const [kofiNudge, setKofiNudge] = useState(false);
+  // Finishing a lesson or reviews may add the Ko-fi line, but only on the first finish of the day.
+  const finished = useCallback(async (text: string) => {
+    setMessage(text);
+    const last = await readJSON<string>(NUDGE_KEY);
+    if (last !== today()) {
+      setKofiNudge(true);
+      writeJSON(NUDGE_KEY, today());
+    } else {
+      setKofiNudge(false);
+    }
+  }, []);
   const [now, setNow] = useState(Date.now());
   const [totals, setTotals] = useState<LevelTotals>({});
   const [testMode, setTestMode] = useState(false);
@@ -70,6 +84,8 @@ export default function App() {
     }
   }, []);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
+
+  useEffect(() => { if (!message) setKofiNudge(false); }, [message]);
 
   const save = useCallback((p: Progress) => {
     progressRef.current = p;
@@ -152,7 +168,7 @@ export default function App() {
           for (const w of learned) p = completeLesson(p, w, t);
           save(p);
           setNow(Date.now());
-          setMessage(`${learned.length} new word${learned.length === 1 ? '' : 's'} learned. Their first review comes in 4 hours.`);
+          finished(`${learned.length} new word${learned.length === 1 ? '' : 's'} learned. Their first review comes in 4 hours.`);
           setScreen({ name: 'home' });
         }} />
     );
@@ -162,13 +178,13 @@ export default function App() {
         onQuit={() => { setNow(Date.now()); setScreen({ name: 'home' }); }}
         onDone={({ right, total }) => {
           setNow(Date.now());
-          setMessage(`Reviews done: ${right} of ${total} right on the first try.`);
+          finished(`Reviews done: ${right} of ${total} right on the first try.`);
           setScreen({ name: 'home' });
         }} />
     );
   } else {
     body = (
-      <Home o={o} offline={offline} message={message} typeTotal={typeTotal}
+      <Home o={o} offline={offline} message={message} kofiNudge={kofiNudge} typeTotal={typeTotal}
         focusLabel={focusName(progress.focus)} onChangeFocus={() => { setMessage(null); setScreen({ name: 'focus' }); }}
         openLevels={progress.openLevels ?? ['A1']}
         onLesson={() => { setMessage(null); setScreen({ name: 'lesson', words: o.lessonsAvailable.slice(0, LESSON_BATCH) }); }}

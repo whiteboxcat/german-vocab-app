@@ -13,6 +13,8 @@ type Props = {
   openLevels: string[];
   offline: boolean;
   message: string | null;
+  /** After finishing a lesson or reviews (at most once a day): a friendly, optional Ko-fi line. */
+  kofiNudge?: boolean;
   onLesson: () => void;
   onReview: () => void;
   onReset: () => void;
@@ -30,7 +32,7 @@ function untilText(ts: number | null, now = Date.now()): string {
 
 const CEFR = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offline, message, onLesson, onReview, onReset, testPanel }: Props) {
+export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offline, message, kofiNudge, onLesson, onReview, onReset, testPanel }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const lessonCount = Math.min(LESSON_BATCH, o.lessonsAvailable.length);
   const passedInLevel = PASS_PER_LEVEL - o.toNextLevel;
@@ -55,7 +57,18 @@ export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offl
           </Pressable>
         </View>
 
-        {message ? <T style={styles.message}>{message}</T> : null}
+        {message ? (
+          <View style={styles.messageBox}>
+            <T style={styles.messageText}>{message}</T>
+            {kofiNudge ? (
+              <T style={styles.nudge}>
+                This app is free to use. If it helps you, any support on{' '}
+                <T style={styles.nudgeLink} accessibilityRole="link" onPress={() => Linking.openURL(KOFI_URL)}>Ko-fi</T>
+                {' '}is appreciated.
+              </T>
+            ) : null}
+          </View>
+        ) : null}
 
         {testPanel}
 
@@ -152,6 +165,10 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' },
   brand: { fontSize: size.lg, fontWeight: '800' },
   offline: { fontSize: size.xs, color: color.muted },
+  messageBox: { backgroundColor: color.rightWash, padding: 14, borderRadius: 12, gap: 8 },
+  messageText: { fontSize: size.md, color: color.ink },
+  nudge: { fontSize: size.sm, color: color.muted, lineHeight: 20 },
+  nudgeLink: { fontSize: size.sm, color: '#3b6fc4', fontWeight: '600', textDecorationLine: 'underline' },
   message: { fontSize: size.md, backgroundColor: color.rightWash, color: color.ink, padding: 14, borderRadius: 12 },
   levelBlock: { gap: 10 },
   levelNum: { fontSize: size.word, fontWeight: '800', letterSpacing: -1 },
