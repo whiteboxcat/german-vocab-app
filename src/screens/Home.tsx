@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { CREDIT, CREDIT_URL } from '../config';
+import { CREDIT, CREDIT_URL, KOFI_COLOR, KOFI_URL } from '../config';
 import { LESSON_BATCH, Overview, PASS_PER_LEVEL } from '../engine/progress';
 import { Bar, Button, T } from '../ui/kit';
 import { color, size } from '../ui/theme';
@@ -108,6 +108,21 @@ export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offl
         </View>
 
         <View style={styles.footer}>
+          <View style={styles.kofiRow}>
+            <T style={styles.kofiNote}>Enjoying the app? It's free and made by one person.</T>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="Support me on Ko-fi (opens ko-fi.com)"
+              onPress={() => Linking.openURL(KOFI_URL)}
+              style={(state) => {
+                const s = state as { pressed: boolean; hovered?: boolean; focused?: boolean };
+                return [styles.kofi, (s.pressed || s.hovered) && { opacity: 0.88 },
+                  s.focused && { outlineColor: KOFI_COLOR, outlineWidth: 2, outlineStyle: 'solid', outlineOffset: 2 } as object];
+              }}>
+              <T style={styles.kofiCup}>☕</T>
+              <T style={styles.kofiText}>Support me on Ko-fi</T>
+            </Pressable>
+          </View>
           <Pressable onPress={() => Linking.openURL(CREDIT_URL)} accessibilityRole="link">
             <T style={styles.credit}>{CREDIT}</T>
           </Pressable>
@@ -147,6 +162,14 @@ const styles = StyleSheet.create({
   cefrRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   cefrName: { fontSize: size.md, fontWeight: '800' },
   footer: { gap: 14, borderTopWidth: 1, borderColor: color.line, paddingTop: 18 },
+  kofiRow: { gap: 8, paddingBottom: 6 },
+  kofiNote: { fontSize: size.sm, color: color.muted },
+  kofi: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+    backgroundColor: KOFI_COLOR, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16,
+  },
+  kofiCup: { fontSize: size.md },
+  kofiText: { color: '#fff', fontSize: size.md, fontWeight: '600' },
   credit: { fontSize: size.xs, color: color.muted, textDecorationLine: 'underline' },
   resetRow: { gap: 8 },
   resetLink: { fontSize: size.xs, color: color.muted },
