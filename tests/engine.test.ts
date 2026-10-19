@@ -9,7 +9,8 @@ import {
   allDueNow, answerCard, completeLesson, emptyProgress, focusWords, LEVEL_SIZE, overview, PASS_PER_LEVEL,
   RESUME_PER_DAY, setFocus, shuffleQueue, skipTime,
 } from '../src/engine/progress';
-import { Noun, Verb, Word } from '../src/engine/types';
+import { Noun, Progress, Verb, Word } from '../src/engine/types';
+import { mergeProgress, sameLearning } from '../src/engine/merge';
 
 const nouns: Noun[] = JSON.parse(readFileSync(new URL('./fixtures/nouns.json', import.meta.url), 'utf8'))
   .map((n: Noun) => ({ ...n, type: 'noun' }));
@@ -217,6 +218,38 @@ test('every real noun and verb accepts each of its listed forms', () => {
     }
   }
   console.log(`   (${n} real forms checked)`);
+});
+
+test('merge: two devices never lose work', () => {
+  const t0 = Date.UTC(2026, 9, 19);
+  const day = 86_400_000;
+  // phone learned Tisch and Stadt; laptop learned Stadt (reviewed later) and gehen
+  let phone = completeLesson(completeLesson(emptyProgress(t0), tisch, t0), stadt, t0);
+  let laptop = completeLesson(completeLesson(emptyProgress(t0 + 1000), stadt, t0), gehen, t0);
+  const stadtGender = Object.keys(laptop.cards).find((id) => id.includes('Stadt#gender'))!;
+  laptop = answerCard(laptop, stadtGender, true, t0 + day);   // newer review on the laptop
+  phone = { ...phone, focus: 'noun', updatedAt: t0 + 2 * day };
+  laptop = { ...laptop, focus: 'both', updatedAt: t0 + day, openLevels: ['A1', 'A2'] };
+
+  const m = mergeProgress(phone, laptop);
+  assert.equal(m.learned.length, 3, 'Tisch, Stadt and gehen are all learned');
+  assert.equal(Object.keys(m.cards).length, 9);
+  assert.equal(m.cards[stadtGender].reps, 1, 'the newer review of Stadt wins');
+  assert.equal(m.focus, 'noun', 'settings from the device that changed last');
+  assert.deepEqual(m.openLevels, ['A1', 'A2']);
+  assert.equal(m.createdAt, t0);
+  // merging is symmetric for the learning itself, and merging again changes nothing
+  assert.ok(sameLearning(mergeProgress(laptop, phone), { ...m, focus: mergeProgress(laptop, phone).focus }));
+  assert.ok(sameLearning(mergeProgress(m, m), m));
+  // first sign-in on a fresh account: nothing remote yet
+  assert.equal(mergeProgress(phone, null), phone);
+  // "Reset progress" on one device is not undone by the older backup
+  const fresh = { ...emptyProgress(t0 + 3 * day), resetAt: t0 + 3 * day, updatedAt: t0 + 3 * day };
+  assert.equal(mergeProgress(fresh, m).learned.length, 0);
+  assert.equal(mergeProgress(m, fresh).learned.length, 0);
+  // ...but learning done after the reset is kept
+  const after = { ...completeLesson(fresh, tisch, t0 + 4 * day), updatedAt: t0 + 4 * day };
+  assert.equal(mergeProgress(fresh, after).learned.length, 1);
 });
 
 console.log(`\n${passed} tests passed`);

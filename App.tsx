@@ -2,6 +2,11 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { readJSON, remove, writeJSON } from './src/data/storage';
+import {
+  AccountError, linkError, loadSession, Session, sessionFromLink, signOut, syncProgress, validSession,
+} from './src/data/account';
+import { Account } from './src/screens/Account';
+import { mergeProgress } from './src/engine/merge';
 import { CEFR_LEVELS, LevelTotals, levelTotals, loadWords } from './src/data/words';
 import { FocusPicker, focusName } from './src/screens/FocusPicker';
 import {
@@ -19,6 +24,8 @@ import { color, loadWebFont, size } from './src/ui/theme';
 const PROGRESS_KEY = 'progress-v1';
 const TEST_KEY = 'test-mode';
 const NUDGE_KEY = 'kofi-nudge-day';
+const LAST_SYNC_KEY = 'account-last-sync';
+const SYNC_DELAY = 4000;
 const today = () => new Date().toISOString().slice(0, 10);
 
 /** ?test turns test mode on (remembered on this device), ?test=off turns it off. */
@@ -28,7 +35,7 @@ function testParam(): boolean | null {
   if (v === null) return null;
   return v !== 'off' && v !== '0';
 }
-type Screen = { name: 'home' } | { name: 'focus' } | { name: 'lesson'; words: Word[] } | { name: 'review'; ids: CardId[] };
+type Screen = { name: 'home' } | { name: 'focus' } | { name: 'account' } | { name: 'lesson'; words: Word[] } | { name: 'review'; ids: CardId[] };
 
 export default function App() {
   const [words, setWords] = useState<Word[] | null>(null);
@@ -55,6 +62,19 @@ export default function App() {
   const [dataInfo, setDataInfo] = useState({ version: 0, source: '' });
   const progressRef = useRef<Progress | null>(null);
   const opening = useRef(false);
+
+  // ---- optional account (backup + sync) ----
+  const [session, setSession] = useState<Session | null>(null);
+  const sessionRef = useRef<Session | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<number | null>(null);
+  const [recovery, setRecovery] = useState(false);
+  const [loginChecked, setLoginChecked] = useState(false);
+  const [accountNotice, setAccountNotice] = useState<string | null>(null);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncBusy = useRef(false);
+  const setLogin = useCallback((s: Session | null) => { sessionRef.current = s; setSession(s); }, []);
 
   const load = useCallback(async () => {
     setError(null);
@@ -87,11 +107,86 @@ export default function App() {
 
   useEffect(() => { if (!message) setKofiNudge(false); }, [message]);
 
-  const save = useCallback((p: Progress) => {
+  // Keep this device's copy (no "changed" stamp: used for what came from the account).
+  const keepLocal = useCallback((p: Progress) => {
     progressRef.current = p;
     setProgress(p);
     writeJSON(PROGRESS_KEY, p);
   }, []);
+
+  const runSync = useCallback(async (): Promise<boolean> => {
+    const local = progressRef.current;
+    if (!local || syncBusy.current) return false;
+    const s = await validSession(sessionRef.current);
+    if (!s) {
+      if (sessionRef.current) { setLogin(null); setMessage('You were signed out. Log in again to keep backing up.'); }
+      return false;
+    }
+    if (s !== sessionRef.current) setLogin(s);
+    syncBusy.current = true; setSyncing(true);
+    try {
+      const r = await syncProgress(s, local);
+      // Answers given while syncing win: merge them on top of what came back.
+      const latest = progressRef.current ?? local;
+      const merged = latest === local ? r.progress : mergeProgress(latest, r.progress);
+      keepLocal(merged);
+      const have = new Set(local.openLevels ?? ['A1']);
+      const want = merged.openLevels ?? ['A1'];
+      if (want.some((l) => !have.has(l))) loadWords(want).then((w) => setWords(w.words)).catch(() => {});
+      const t = Date.now();
+      setLastSync(t); writeJSON(LAST_SYNC_KEY, t); setSyncError(null);
+      setNow(Date.now());
+      return r.gotNew;
+    } catch (e) {
+      setSyncError(e instanceof AccountError ? e.message : 'Backup failed. It will try again later.');
+      return false;
+    } finally {
+      syncBusy.current = false; setSyncing(false);
+    }
+  }, [keepLocal, setLogin]);
+
+  const scheduleSync = useCallback(() => {
+    if (!sessionRef.current) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => { syncTimer.current = null; runSync(); }, SYNC_DELAY);
+  }, [runSync]);
+
+  // A change made on this device: stamp it, keep it, and back it up shortly after.
+  const save = useCallback((p: Progress) => {
+    keepLocal({ ...p, updatedAt: Date.now() });
+    scheduleSync();
+  }, [keepLocal, scheduleSync]);
+
+  // Sign-in state on start: an email link (confirm / reset password) or a saved login.
+  useEffect(() => {
+    (async () => {
+      const err = linkError();
+      if (err) { setAccountNotice(err); setScreen({ name: 'account' }); }
+      const fromLink = await sessionFromLink();
+      readJSON<number>(LAST_SYNC_KEY).then((t) => setLastSync(t));
+      if (fromLink) {
+        setLogin(fromLink.session);
+        if (fromLink.kind === 'recovery') { setRecovery(true); setScreen({ name: 'account' }); }
+        else setMessage('Your email is confirmed. Your progress is now backed up.');
+      } else {
+        setLogin(await validSession(await loadSession()));
+      }
+      setLoginChecked(true);
+    })();
+  }, [setLogin]);
+
+  // Signed in and progress loaded → sync once; and again whenever the app comes back into view.
+  const hasProgress = !!progress;
+  useEffect(() => { if (loginChecked && hasProgress && sessionRef.current) runSync(); }, [loginChecked, hasProgress, runSync]);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const onVis = () => {
+      if (document.visibilityState === 'visible') runSync();
+      else if (syncTimer.current) { clearTimeout(syncTimer.current); syncTimer.current = null; runSync(); }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [runSync]);
   useEffect(() => { progressRef.current = progress; }, [progress]);
 
   const byKey = useMemo(() => new Map((words ?? []).map((w) => [wordKey(w), w])), [words]);
@@ -147,6 +242,36 @@ export default function App() {
     );
   } else if (!o || !progress) {
     body = <View style={styles.center}><ActivityIndicator color={color.ink} /></View>;
+  } else if (screen.name === 'account') {
+    body = (
+      <Account session={session} recovery={recovery} lastSync={lastSync} syncing={syncing} syncError={syncError}
+        notice={accountNotice}
+        onBack={() => { setRecovery(false); setAccountNotice(null); setScreen({ name: 'home' }); }}
+        onSignedIn={async (s) => {
+          setLogin(s);
+          setScreen({ name: 'home' });
+          setMessage('Signed in. Backing up your progress…');
+          const gotNew = await runSync();
+          setMessage(gotNew
+            ? `Signed in as ${s.email}. Your progress from the account was added to this device.`
+            : `Signed in as ${s.email}. Your progress is backed up.`);
+        }}
+        onSyncNow={() => runSync()}
+        onSignOut={() => {
+          signOut(sessionRef.current); setLogin(null); setSyncError(null);
+          setScreen({ name: 'home' });
+          setMessage('Signed out. Your progress is still on this device.');
+        }}
+        onDeleted={() => {
+          setLogin(null); setSyncError(null); setLastSync(null); remove(LAST_SYNC_KEY);
+          setScreen({ name: 'home' });
+          setMessage('Account deleted. Your progress is still on this device.');
+        }}
+        onRecoveryDone={() => {
+          setRecovery(false); setScreen({ name: 'home' });
+          setMessage('New password saved. You are signed in.');
+        }} />
+    );
   } else if (!progress.focus || screen.name === 'focus') {
     body = (
       <FocusPicker current={progress.focus}
@@ -207,11 +332,15 @@ export default function App() {
             onExit={() => { setTestMode(false); writeJSON(TEST_KEY, false); }}
           />
         ) : null}
+        account={{ email: session?.email ?? null, syncing, error: syncError }}
+        onAccount={() => { setMessage(null); setScreen({ name: 'account' }); }}
         onReset={async () => {
           await remove(PROGRESS_KEY);
-          save({ ...emptyProgress(Date.now()), openLevels: ['A1'], focus: progress.focus });
+          save({ ...emptyProgress(Date.now()), openLevels: ['A1'], focus: progress.focus, resetAt: Date.now() });
           setWords((ws) => (ws ?? []).filter((w) => w.level === 'A1'));
-          setMessage('Progress deleted. Start again with your first lesson.');
+          setMessage(sessionRef.current
+            ? 'Progress deleted here and in your account backup. Start again with your first lesson.'
+            : 'Progress deleted. Start again with your first lesson.');
         }} />
     );
   }

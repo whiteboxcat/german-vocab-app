@@ -19,6 +19,9 @@ type Props = {
   onReview: () => void;
   onReset: () => void;
   testPanel?: React.ReactNode;
+  /** Optional account: null email = progress lives on this device only. */
+  account: { email: string | null; syncing: boolean; error: string | null };
+  onAccount: () => void;
 };
 
 function untilText(ts: number | null, now = Date.now()): string {
@@ -32,7 +35,7 @@ function untilText(ts: number | null, now = Date.now()): string {
 
 const CEFR = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offline, message, kofiNudge, onLesson, onReview, onReset, testPanel }: Props) {
+export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offline, message, kofiNudge, onLesson, onReview, onReset, testPanel, account, onAccount }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const lessonCount = Math.min(LESSON_BATCH, o.lessonsAvailable.length);
   const passedInLevel = PASS_PER_LEVEL - o.toNextLevel;
@@ -56,6 +59,18 @@ export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offl
             <T style={styles.focusChangeText}>Change</T>
           </Pressable>
         </View>
+
+        <Pressable accessibilityRole="button" onPress={onAccount}
+          accessibilityLabel={account.email ? `Account: ${account.email}` : 'Back up my progress'}
+          style={(state) => [styles.saveRow, (state as { hovered?: boolean }).hovered && { borderColor: color.muted }]}>
+          <View style={[styles.dot, { backgroundColor: account.email ? (account.error ? color.wrong : color.das) : color.hidden }]} />
+          <T style={styles.saveText} numberOfLines={1}>
+            {account.email
+              ? account.syncing ? 'Backing up…' : account.error ? 'Not backed up right now' : `Backed up · ${account.email}`
+              : 'Progress saved on this device only'}
+          </T>
+          <T style={styles.saveAction}>{account.email ? 'Account' : 'Back up'}</T>
+        </Pressable>
 
         {message ? (
           <View style={styles.messageBox}>
@@ -161,6 +176,14 @@ const styles = StyleSheet.create({
   focusText: { fontSize: size.sm, color: color.muted },
   focusName: { fontSize: size.sm, color: color.ink, fontWeight: '600' },
   focusChange: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: color.line },
+  saveRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: -16,
+    borderWidth: 1, borderColor: color.line, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12,
+    backgroundColor: color.surface,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  saveText: { flex: 1, fontSize: size.sm, color: color.muted },
+  saveAction: { fontSize: size.sm, fontWeight: '600', color: color.der },
   focusChangeText: { fontSize: size.sm, fontWeight: '600' },
   brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap' },
   brand: { fontSize: size.lg, fontWeight: '800' },

@@ -91,6 +91,10 @@ export type Progress = {
   openLevels?: string[];
   /** What the learner chose to study. Missing = not chosen yet (the app asks on first open). */
   focus?: Focus;
+  /** Last local change (ms). Used to pick the newer focus/levels when two devices are merged. */
+  updatedAt?: number;
+  /** When "Reset progress" was used. A backup older than this is ignored instead of merged back in. */
+  resetAt?: number;
 };
 
 export type Focus = 'both' | 'noun' | 'verb';
