@@ -157,23 +157,34 @@ export default function App() {
     scheduleSync();
   }, [keepLocal, scheduleSync]);
 
-  // Sign-in state on start: an email link (confirm / reset password) or a saved login.
+  // Links from emails (confirm / reset password) bring the login in the address.
+  const takeLink = useCallback(async (): Promise<boolean> => {
+    const err = linkError();
+    if (err) { setAccountNotice(err); setScreen({ name: 'account' }); }
+    const fromLink = await sessionFromLink();
+    if (!fromLink) return !!err;
+    setLogin(fromLink.session);
+    if (fromLink.kind === 'recovery') { setRecovery(true); setScreen({ name: 'account' }); }
+    else setMessage('Your email is confirmed. Your progress is now backed up.');
+    return true;
+  }, [setLogin]);
+
+  // Sign-in state on start: an email link or a saved login.
   useEffect(() => {
     (async () => {
-      const err = linkError();
-      if (err) { setAccountNotice(err); setScreen({ name: 'account' }); }
-      const fromLink = await sessionFromLink();
       readJSON<number>(LAST_SYNC_KEY).then((t) => setLastSync(t));
-      if (fromLink) {
-        setLogin(fromLink.session);
-        if (fromLink.kind === 'recovery') { setRecovery(true); setScreen({ name: 'account' }); }
-        else setMessage('Your email is confirmed. Your progress is now backed up.');
-      } else {
-        setLogin(await validSession(await loadSession()));
-      }
+      if (!(await takeLink()) || !sessionRef.current) setLogin(await validSession(await loadSession()));
       setLoginChecked(true);
     })();
-  }, [setLogin]);
+  }, [takeLink, setLogin]);
+
+  // The link opened in a tab where the app was already running: only the #… part changed.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onHash = () => { takeLink().then((got) => { if (got && sessionRef.current) runSync(); }); };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [takeLink, runSync]);
 
   // Signed in and progress loaded → sync once; and again whenever the app comes back into view.
   const hasProgress = !!progress;
