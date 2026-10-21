@@ -21,7 +21,8 @@ create policy "own progress: insert" on public.user_progress for insert to authe
 create policy "own progress: update" on public.user_progress for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
 create policy "own progress: delete" on public.user_progress for delete to authenticated using ((select auth.uid()) = user_id);
 
-grant select, insert, update, delete on public.user_progress to authenticated;
+-- Explicit Data API access (Supabase stops granting this automatically for new tables from 2026-10-30).
+grant select, insert, update, delete on public.user_progress to authenticated, service_role;
 revoke all on public.user_progress from anon;
 
 -- "Delete my account" in the app: removes the login and (via the cascade) the saved progress.
