@@ -28,7 +28,7 @@ const LAST_SYNC_KEY = 'account-last-sync';
 const SYNC_DELAY = 4000;
 const today = () => new Date().toISOString().slice(0, 10);
 
-/** ?test turns test mode on (remembered on this device), ?test=off turns it off. */
+/** ?test shows the test panel (only while it's in the address). */
 function testParam(): boolean | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   const v = new URLSearchParams(window.location.search).get('test');
@@ -94,15 +94,8 @@ export default function App() {
   }, []);
 
   useEffect(() => { loadWebFont(); load(); }, [load]);
-  useEffect(() => {
-    const fromUrl = testParam();
-    if (fromUrl !== null) {
-      setTestMode(fromUrl);
-      writeJSON(TEST_KEY, fromUrl);
-    } else {
-      readJSON<boolean>(TEST_KEY).then((v) => setTestMode(!!v));
-    }
-  }, []);
+  // Test mode only while ?test is in the address; nothing is remembered (old saved flag is cleared).
+  useEffect(() => { setTestMode(!!testParam()); remove(TEST_KEY); }, []);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
 
   useEffect(() => { if (!message) setKofiNudge(false); }, [message]);
@@ -340,7 +333,10 @@ export default function App() {
               setMessage('Every learned card is due now.');
             }}
             onOpenNextLevel={() => openNextLevel('test')}
-            onExit={() => { setTestMode(false); writeJSON(TEST_KEY, false); }}
+            onExit={() => {
+              setTestMode(false);
+              if (Platform.OS === 'web' && typeof window !== 'undefined') window.history.replaceState(null, '', window.location.pathname);
+            }}
           />
         ) : null}
         account={{ email: session?.email ?? null, syncing, error: syncError }}
