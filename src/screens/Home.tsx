@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { CREDIT, CREDIT_URL, KOFI_COLOR, KOFI_URL } from '../config';
+import { CREDIT, CREDIT_URL, ICON_CREDIT, ICON_CREDIT_URL, KOFI_COLOR, KOFI_URL } from '../config';
 import { LESSON_BATCH, Overview, PASS_PER_LEVEL } from '../engine/progress';
 import { Bar, Button, T } from '../ui/kit';
 import { color, size } from '../ui/theme';
@@ -153,6 +153,9 @@ export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offl
           </View>
           <Pressable onPress={() => Linking.openURL(CREDIT_URL)} accessibilityRole="link">
             <T style={styles.credit}>{CREDIT}</T>
+          </Pressable>
+          <Pressable onPress={() => Linking.openURL(ICON_CREDIT_URL)} accessibilityRole="link" style={{ marginTop: -8 }}>
+            <T style={styles.credit}>{ICON_CREDIT}</T>
           </Pressable>
           {confirmReset ? (
             <View style={styles.resetRow}>
