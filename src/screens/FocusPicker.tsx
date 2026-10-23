@@ -27,9 +27,11 @@ type Props = {
   current: Focus | undefined;     // undefined = first open
   onChoose: (f: Focus) => void;
   onCancel?: () => void;
+  /** First open only: someone who already has an account can log in straight away. */
+  onLogIn?: () => void;
 };
 
-export function FocusPicker({ current, onChoose, onCancel }: Props) {
+export function FocusPicker({ current, onChoose, onCancel, onLogIn }: Props) {
   const [picked, setPicked] = useState<Focus>(current ?? 'both');
   const first = current === undefined;
   const pausing = !first && picked !== 'both' && picked !== current;
@@ -38,11 +40,20 @@ export function FocusPicker({ current, onChoose, onCancel }: Props) {
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <View style={styles.wrap}>
         <Appear>
-          <T style={styles.brand}>
-            <T style={[styles.brand, { color: color.der }]}>der </T>
-            <T style={[styles.brand, { color: color.die }]}>die </T>
-            <T style={[styles.brand, { color: color.das }]}>das</T>
-          </T>
+          <View style={styles.topRow}>
+            <T style={styles.brand}>
+              <T style={[styles.brand, { color: color.der }]}>der </T>
+              <T style={[styles.brand, { color: color.die }]}>die </T>
+              <T style={[styles.brand, { color: color.das }]}>das</T>
+            </T>
+          </View>
+          {first && onLogIn ? (
+            <T style={styles.loginHint}>
+              Learned here before?{' '}
+              <T style={styles.loginLink} accessibilityRole="link" onPress={onLogIn}>Log in</T>
+              {' '}to continue where you left off.
+            </T>
+          ) : null}
           <T style={styles.title}>What do you want to learn?</T>
           <T style={styles.sub}>
             {first ? 'You can change this anytime from the home screen.'
@@ -99,6 +110,10 @@ export function FocusPicker({ current, onChoose, onCancel }: Props) {
 const styles = StyleSheet.create({
   wrap: { width: '100%', maxWidth: 560, alignSelf: 'center', padding: 20, gap: 20 },
   brand: { fontSize: size.lg, fontWeight: '800' },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  loginHint: { fontSize: size.sm, color: color.muted, marginTop: 14, backgroundColor: color.surface, borderWidth: 1,
+    borderColor: color.line, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, lineHeight: 20 },
+  loginLink: { fontSize: size.sm, color: color.der, fontWeight: '600', textDecorationLine: 'underline' },
   title: { fontSize: size.xxl, fontWeight: '800', letterSpacing: -0.5, marginTop: 18 },
   sub: { fontSize: size.md, color: color.muted, marginTop: 6, lineHeight: 24 },
   options: { gap: 12 },

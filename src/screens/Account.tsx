@@ -18,6 +18,8 @@ type Props = {
   syncing: boolean;
   syncError: string | null;
   notice?: string | null;
+  /** Open on "Log in" instead of "Create account". */
+  startWithLogin?: boolean;
   onSignedIn: (s: Session) => void;
   onSyncNow: () => void;
   onSignOut: () => void;
@@ -70,7 +72,7 @@ const PRIVACY =
   'Nothing else. Your password is never stored in readable form. You can delete the account and everything in it here at any time.';
 
 export function Account(p: Props) {
-  const [mode, setMode] = useState<Mode>('create');
+  const [mode, setMode] = useState<Mode>(p.startWithLogin ? 'login' : 'create');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);

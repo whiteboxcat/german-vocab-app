@@ -35,7 +35,7 @@ function testParam(): boolean | null {
   if (v === null) return null;
   return v !== 'off' && v !== '0';
 }
-type Screen = { name: 'home' } | { name: 'focus' } | { name: 'account' } | { name: 'lesson'; words: Word[] } | { name: 'review'; ids: CardId[] };
+type Screen = { name: 'home' } | { name: 'focus' } | { name: 'account'; login?: boolean } | { name: 'lesson'; words: Word[] } | { name: 'review'; ids: CardId[] };
 
 export default function App() {
   const [words, setWords] = useState<Word[] | null>(null);
@@ -249,7 +249,7 @@ export default function App() {
   } else if (screen.name === 'account') {
     body = (
       <Account session={session} recovery={recovery} lastSync={lastSync} syncing={syncing} syncError={syncError}
-        notice={accountNotice}
+        notice={accountNotice} startWithLogin={screen.login}
         onBack={() => { setRecovery(false); setAccountNotice(null); setScreen({ name: 'home' }); }}
         onSignedIn={async (s) => {
           setLogin(s);
@@ -280,6 +280,7 @@ export default function App() {
     body = (
       <FocusPicker current={progress.focus}
         onCancel={progress.focus ? () => setScreen({ name: 'home' }) : undefined}
+        onLogIn={() => setScreen({ name: 'account', login: true })}
         onChoose={(f) => {
           const first = !progress.focus;
           save(setFocus(progressRef.current ?? progress, f, Date.now()));
