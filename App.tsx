@@ -10,7 +10,7 @@ import { mergeProgress } from './src/engine/merge';
 import { CEFR_LEVELS, LevelTotals, levelTotals, loadWords } from './src/data/words';
 import { FocusPicker, focusName } from './src/screens/FocusPicker';
 import {
-  allDueNow, answerCard, completeLesson, emptyProgress, focusWords, LESSON_BATCH, overview, setFocus, skipTime,
+  allDueNow, answerCard, completeLesson, emptyProgress, focusWords, LESSON_BATCH, overview, setDailyNew, setFocus, skipTime,
 } from './src/engine/progress';
 import { CardId, Progress, Word, wordKey } from './src/engine/types';
 import { Home } from './src/screens/Home';
@@ -342,6 +342,7 @@ export default function App() {
         ) : null}
         account={{ email: session?.email ?? null, syncing, error: syncError }}
         onAccount={() => { setMessage(null); setScreen({ name: 'account' }); }}
+        onDailyNew={(n) => { save(setDailyNew(progressRef.current ?? progress, n)); setNow(Date.now()); }}
         onReset={async () => {
           await remove(PROGRESS_KEY);
           save({ ...emptyProgress(Date.now()), openLevels: ['A1'], focus: progress.focus, resetAt: Date.now() });

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { CREDIT, CREDIT_URL, ICON_CREDIT, ICON_CREDIT_URL, KOFI_COLOR, KOFI_URL } from '../config';
-import { LESSON_BATCH, Overview, PASS_PER_LEVEL } from '../engine/progress';
+import { DAILY_NEW_CHOICES, LESSON_BATCH, Overview, PASS_PER_LEVEL, REVIEW_CAP } from '../engine/progress';
 import { Bar, Button, T } from '../ui/kit';
 import { color, size } from '../ui/theme';
 
@@ -22,6 +22,7 @@ type Props = {
   /** Optional account: null email = progress lives on this device only. */
   account: { email: string | null; syncing: boolean; error: string | null };
   onAccount: () => void;
+  onDailyNew: (n: number) => void;
 };
 
 function untilText(ts: number | null, now = Date.now()): string {
@@ -35,7 +36,7 @@ function untilText(ts: number | null, now = Date.now()): string {
 
 const CEFR = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
-export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offline, message, kofiNudge, onLesson, onReview, onReset, testPanel, account, onAccount }: Props) {
+export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offline, message, kofiNudge, onLesson, onReview, onReset, testPanel, account, onAccount, onDailyNew }: Props) {
   const [confirmReset, setConfirmReset] = useState(false);
   const lessonCount = Math.min(LESSON_BATCH, o.lessonsAvailable.length);
   const passedInLevel = PASS_PER_LEVEL - o.toNextLevel;
@@ -103,15 +104,33 @@ export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offl
           />
           {!o.reviewsDue.length ? <T style={styles.hint}>{untilText(o.nextReviewAt)}</T> : null}
           <Button
-            label={lessonCount ? `Learn ${lessonCount} new word${lessonCount === 1 ? '' : 's'}` : 'No new words yet'}
+            label={lessonCount ? `Learn ${lessonCount} new word${lessonCount === 1 ? '' : 's'}` : o.lessonsWait === 'daily' ? 'No more new words today' : 'No new words right now'}
             onPress={onLesson} disabled={!lessonCount} tint={color.der}
           />
-          {!lessonCount ? (
-            <T style={styles.hint}>
-              {o.learned >= o.total ? 'You have learned every word in the list so far.'
-                : 'Finish the reviews of this level to unlock more words.'}
-            </T>
-          ) : null}
+          <T style={styles.hint}>
+            {o.lessonsWait === 'all' ? 'You have learned every word in the list so far.'
+              : o.lessonsWait === 'reviews'
+                ? `More than ${REVIEW_CAP} reviews are waiting. Do some reviews first, then new words come back.`
+                : o.lessonsWait === 'daily'
+                  ? `That's today's ${o.dailyNew} new words. More tomorrow.`
+                  : `New words today: ${o.newToday} of ${o.dailyNew}`}
+          </T>
+          <View style={styles.dailyRow}>
+            <T style={styles.dailyLabel}>New words a day</T>
+            <View style={styles.seg} accessibilityRole="radiogroup">
+              {DAILY_NEW_CHOICES.map((n) => {
+                const on = o.dailyNew === n;
+                return (
+                  <Pressable key={n} accessibilityRole="radio" aria-checked={on} accessibilityState={{ checked: on }}
+                    accessibilityLabel={`${n} new words a day`} onPress={() => onDailyNew(n)}
+                    style={(state) => [styles.segItem, on && styles.segOn,
+                      !on && (state as { hovered?: boolean }).hovered && { backgroundColor: color.line }]}>
+                    <T style={[styles.segText, on && { color: '#fff' }]}>{n}</T>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         </View>
 
         <View style={styles.cefr}>
@@ -201,6 +220,12 @@ const styles = StyleSheet.create({
   sub: { fontSize: size.sm, color: color.muted, lineHeight: 21 },
   actions: { gap: 10 },
   hint: { fontSize: size.sm, color: color.muted, textAlign: 'center', marginBottom: 6 },
+  dailyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  dailyLabel: { fontSize: size.sm, color: color.muted },
+  seg: { flexDirection: 'row', borderWidth: 1, borderColor: color.line, borderRadius: 8, overflow: 'hidden', backgroundColor: color.surface },
+  segItem: { paddingVertical: 5, paddingHorizontal: 12 },
+  segOn: { backgroundColor: color.ink },
+  segText: { fontSize: size.sm, fontWeight: '600' },
   cefr: { gap: 14 },
   cefrRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   cefrName: { fontSize: size.md, fontWeight: '800' },

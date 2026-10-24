@@ -6,8 +6,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { check, facetsFor, promptFor } from '../src/engine/cards';
 import { intervalDays, LEARNING_STEPS, review, newCardAfterLesson } from '../src/engine/fsrs';
 import {
-  allDueNow, answerCard, completeLesson, emptyProgress, focusWords, LEVEL_SIZE, overview, PASS_PER_LEVEL,
-  RESUME_PER_DAY, setFocus, shuffleQueue, skipTime,
+  allDueNow, answerCard, completeLesson, emptyProgress, focusWords, overview, PASS_PER_LEVEL, RESUME_PER_DAY, setFocus, shuffleQueue, skipTime, DAILY_NEW_DEFAULT, REVIEW_CAP, setDailyNew,
 } from '../src/engine/progress';
 import { Noun, Progress, Verb, Word } from '../src/engine/types';
 import { mergeProgress, sameLearning } from '../src/engine/merge';
@@ -86,38 +85,44 @@ test('learning steps then FSRS', () => {
   assert.equal(review(newCardAfterLesson(now), false, now + 1).step, 0);
 });
 
-test('levels unlock after passing words', () => {
-  const now = Date.UTC(2026, 9, 6);
-  // Make 30 synthetic nouns so we can see unlocking.
-  const many: Word[] = Array.from({ length: 30 }, (_, i) => ({
-    ...tisch, id: `W${i}`, lemma: `Wort${i}`, rank: i,
-  }));
+test('new words: a daily allowance, paused only when reviews pile up', () => {
+  const now = new Date(2026, 9, 24, 9, 0).getTime();   // 9:00 local time
+  const many: Word[] = Array.from({ length: 300 }, (_, i) => ({ ...tisch, id: `W${i}`, lemma: `Wort${i}`, rank: i }));
   let p = emptyProgress(now);
   let o = overview(many, p, now);
-  assert.equal(o.level, 1);
-  assert.equal(o.lessonsAvailable.length, LEVEL_SIZE);
+  assert.equal(o.lessonsAvailable.length, DAILY_NEW_DEFAULT, '10 new words a day by default');
   assert.equal(o.lessonsAvailable[0].id, 'W0', 'common words first');
-
   for (const w of o.lessonsAvailable) p = completeLesson(p, w, now);
-  o = overview(many, p, now);
-  assert.equal(o.lessonsAvailable.length, 0, 'level 1 used up');
-  assert.equal(o.reviewsDue.length, 0, 'first review comes later');
-  assert.ok(o.nextReviewAt && o.nextReviewAt > now);
-
-  // Pass PASS_PER_LEVEL words by answering every step correctly.
-  let t = now;
-  for (let step = 0; step < LEARNING_STEPS.length; step++) {
-    t += LEARNING_STEPS[step];
-    for (const id of Object.keys(p.cards)) {
-      const wordIdx = Number(id.match(/W(\d+)#/)![1]);
-      if (wordIdx < PASS_PER_LEVEL) p = answerCard(p, id, true, t);
-    }
-  }
-  o = overview(many, p, t);
-  assert.equal(o.passed, PASS_PER_LEVEL);
-  assert.equal(o.level, 2);
-  assert.equal(o.lessonsAvailable.length, LEVEL_SIZE);
+  o = overview(many, p, now + 3_600_000);
+  assert.equal(o.newToday, 10);
+  assert.equal(o.lessonsAvailable.length, 0);
+  assert.equal(o.lessonsWait, 'daily', "today's words are used up");
+  // next morning: 10 more, even though nothing has been learned well yet (no level gate)
+  const tomorrow = now + 24 * 3_600_000;
+  o = overview(many, p, tomorrow);
+  assert.equal(o.passed, 0);
+  assert.equal(o.lessonsAvailable.length, 10);
   assert.equal(o.lessonsAvailable[0].id, 'W10');
+  // the learner can choose 20 a day
+  p = setDailyNew(p, 20);
+  assert.equal(overview(many, p, now + 3_600_000).lessonsAvailable.length, 10, '10 more today with 20 a day');
+  // too many reviews due → new words wait (each noun has 3 parts: 20 words = 60 reviews)
+  for (const w of many.slice(10, 20)) p = completeLesson(p, w, now);
+  o = overview(many, p, tomorrow);
+  assert.ok(o.reviewsDue.length > REVIEW_CAP);
+  assert.equal(o.lessonsWait, 'reviews');
+  assert.equal(o.lessonsAvailable.length, 0);
+  for (const id of o.reviewsDue.slice(0, 20)) p = answerCard(p, id, true, tomorrow);
+  o = overview(many, p, tomorrow);
+  assert.equal(o.lessonsWait, null, 'back under the limit → new words again');
+  // the level number still grows with words learned well
+  let t = now;
+  let q = emptyProgress(now);
+  for (const w of many.slice(0, PASS_PER_LEVEL)) q = completeLesson(q, w, now);
+  for (const step of LEARNING_STEPS) { t += step; for (const id of Object.keys(q.cards)) q = answerCard(q, id, true, t); }
+  assert.equal(overview(many, q, t).level, 2);
+  // skipping a day in test mode also gives a new day's words
+  assert.equal(overview(many, skipTime(q, 24 * 3_600_000), now).newToday, 0);
 });
 
 test('shuffle keeps facets of a word apart', () => {

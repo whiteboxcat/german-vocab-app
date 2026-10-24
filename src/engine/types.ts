@@ -95,6 +95,10 @@ export type Progress = {
   updatedAt?: number;
   /** When "Reset progress" was used. A backup older than this is ignored instead of merged back in. */
   resetAt?: number;
+  /** When each word had its lesson (word key → ms). Counts today's new words. */
+  learnedAt?: Record<string, number>;
+  /** New words allowed per day (5, 10 or 20). Default DAILY_NEW_DEFAULT. */
+  dailyNew?: number;
 };
 
 export type Focus = 'both' | 'noun' | 'verb';

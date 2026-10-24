@@ -4,10 +4,22 @@ import { cardId, facetsFor, parseCardId } from './cards';
 import { isGraduated, newCardAfterLesson, review } from './fsrs';
 import { CardId, CardState, Focus, Progress, Word, headword, wordKey } from './types';
 
-/** Words per level. A level unlocks once PASS_PER_LEVEL words of the previous ones are learned. */
-export const LEVEL_SIZE = 10;
+/** "Level N" is a progress number: every PASS_PER_LEVEL words learned well is one level. It never blocks lessons. */
 export const PASS_PER_LEVEL = 8;
 export const LESSON_BATCH = 5;
+/** New words come as a daily allowance (like Lingvist), not behind levels. */
+export const DAILY_NEW_DEFAULT = 10;
+export const DAILY_NEW_CHOICES = [5, 10, 20];
+/** New words wait while more than this many reviews are due, so reviews never pile up. */
+export const REVIEW_CAP = 50;
+const DAY = 86_400_000;
+
+/** Local midnight of the day `now` falls in. */
+export function dayStart(now: number): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
 export const CEFR_ORDER = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
 export const emptyProgress = (now: number): Progress => ({
@@ -39,8 +51,12 @@ export type Overview = {
   passed: number;
   learned: number;
   total: number;
-  toNextLevel: number;       // words still to pass before the next level unlocks
-  lessonsAvailable: Word[];  // in teaching order
+  toNextLevel: number;       // words still to learn well for the next level number
+  lessonsAvailable: Word[];  // in teaching order (today's allowance, empty while reviews pile up)
+  dailyNew: number;          // allowance per day
+  newToday: number;          // new words already learned today
+  /** Why there are no lessons right now: today's allowance used, too many reviews due, or every word learned. */
+  lessonsWait: null | 'daily' | 'reviews' | 'all';
   reviewsDue: CardId[];
   nextReviewAt: number | null;
   byCefr: { cefr: string; learned: number; total: number }[];
@@ -52,9 +68,6 @@ export function overview(words: Word[], p: Progress, now: number): Overview {
   const learnedSet = new Set(p.learned.filter((k) => byKey.has(k)));
   const passed = sorted.filter((w) => learnedSet.has(wordKey(w)) && isWordPassed(w, p)).length;
   const level = 1 + Math.floor(passed / PASS_PER_LEVEL);
-  const unlocked = level * LEVEL_SIZE;
-  const room = Math.max(0, unlocked - learnedSet.size);
-  const lessonsAvailable = sorted.filter((w) => !learnedSet.has(wordKey(w))).slice(0, room);
 
   const reviewsDue: CardId[] = [];
   let nextReviewAt: number | null = null;
@@ -64,6 +77,15 @@ export function overview(words: Word[], p: Progress, now: number): Overview {
     else if (nextReviewAt === null || c.due < nextReviewAt) nextReviewAt = c.due;
   }
 
+  const dailyNew = p.dailyNew ?? DAILY_NEW_DEFAULT;
+  const today = dayStart(now);
+  const newToday = Object.values(p.learnedAt ?? {}).filter((t) => t >= today && t < today + DAY).length;
+  const unlearned = sorted.filter((w) => !learnedSet.has(wordKey(w)));
+  const lessonsWait: Overview['lessonsWait'] = !unlearned.length ? 'all'
+    : reviewsDue.length > REVIEW_CAP ? 'reviews'
+    : newToday >= dailyNew ? 'daily' : null;
+  const lessonsAvailable = lessonsWait ? [] : unlearned.slice(0, dailyNew - newToday);
+
   const byCefr = CEFR_ORDER.map((cefr) => {
     const ws = sorted.filter((w) => w.level === cefr);
     return { cefr, total: ws.length, learned: ws.filter((w) => learnedSet.has(wordKey(w))).length };
@@ -72,7 +94,7 @@ export function overview(words: Word[], p: Progress, now: number): Overview {
   return {
     level, passed, learned: learnedSet.size, total: sorted.length,
     toNextLevel: PASS_PER_LEVEL - (passed % PASS_PER_LEVEL),
-    lessonsAvailable, reviewsDue, nextReviewAt, byCefr,
+    lessonsAvailable, reviewsDue, nextReviewAt, byCefr, dailyNew, newToday, lessonsWait,
   };
 }
 
@@ -84,7 +106,12 @@ export function completeLesson(p: Progress, w: Word, now: number): Progress {
     const id = cardId(w, f);
     if (!cards[id]) cards[id] = { id, ...newCardAfterLesson(now) };
   }
-  return { ...p, cards, learned: p.learned.includes(key) ? p.learned : [...p.learned, key] };
+  if (p.learned.includes(key)) return { ...p, cards };
+  return { ...p, cards, learned: [...p.learned, key], learnedAt: { ...(p.learnedAt ?? {}), [key]: now } };
+}
+
+export function setDailyNew(p: Progress, n: number): Progress {
+  return { ...p, dailyNew: n };
 }
 
 export function answerCard(p: Progress, id: CardId, correct: boolean, now: number): Progress {
@@ -118,7 +145,8 @@ export function skipTime(p: Progress, ms: number): Progress {
   for (const [id, c] of Object.entries(p.cards)) {
     cards[id] = { ...c, due: c.due - ms, lastReview: c.lastReview === null ? null : c.lastReview - ms };
   }
-  return { ...p, cards, createdAt: p.createdAt - ms };
+  const learnedAt = Object.fromEntries(Object.entries(p.learnedAt ?? {}).map(([k, t]) => [k, t - ms]));
+  return { ...p, cards, learnedAt, createdAt: p.createdAt - ms };
 }
 
 /** Make every card due right now (keeps how well each one is known). */
