@@ -113,10 +113,10 @@ export function Home({ o, typeTotal, focusLabel, onChangeFocus, openLevels, offl
                 ? `More than ${REVIEW_CAP} reviews are waiting. Do some reviews first, then new words come back.`
                 : o.lessonsWait === 'daily'
                   ? `That's today's ${o.dailyNew} new words. More tomorrow.`
-                  : `New words today: ${o.newToday} of ${o.dailyNew}`}
+                  : `Today: ${o.newToday} of ${o.dailyNew} new words · ${LESSON_BATCH} per lesson`}
           </T>
           <View style={styles.dailyRow}>
-            <T style={styles.dailyLabel}>New words a day</T>
+            <T style={styles.dailyLabel}>New words per day</T>
             <View style={styles.seg} accessibilityRole="radiogroup">
               {DAILY_NEW_CHOICES.map((n) => {
                 const on = o.dailyNew === n;
